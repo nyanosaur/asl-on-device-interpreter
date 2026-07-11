@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SignSpeak — On-Device ASL to Speech Interpreter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="app">
+
+    <!-- ========== HEADER ========== -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M7 11V7a2 2 0 0 1 4 0v4M11 11V5a2 2 0 0 1 4 0v6M15 11V7a2 2 0 0 1 4 0v6.5c0 3.59-2.91 6.5-6.5 6.5h-1c-2.14 0-4.14-.9-5.5-2.47l-3.1-3.53a1.5 1.5 0 0 1 2.15-2.08L7 13" stroke="#10B981" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <div class="brand-text">
+            <h1>SignSpeak</h1>
+            <p>On-Device ASL → Speech Interpreter</p>
+          </div>
+        </div>
+        <div class="local-pill" role="status" aria-live="polite">
+          <span class="pill-dot" aria-hidden="true"></span>
+          100% LOCAL BROWSER INFERENCE
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div class="stat-panel" aria-label="Live performance stats">
+          <div class="stat">
+            <span class="stat-label">Inference</span>
+            <span class="stat-value" id="stat-inference">32<small>ms</small></span>
+          </div>
+          <div class="stat-divider" aria-hidden="true"></div>
+          <div class="stat">
+            <span class="stat-label">Processing</span>
+            <span class="stat-value" id="stat-fps">30<small>fps</small></span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ========== MAIN SPLIT ========== -->
+    <main class="main-grid">
+
+      <!-- LEFT: Webcam column -->
+      <section class="webcam-column" aria-label="Camera feed">
+        <div class="panel-label">
+          <span>Camera Feed</span>
+          <span class="rec-indicator" id="rec-indicator"><span class="rec-dot"></span>LIVE</span>
+        </div>
+
+        <div class="webcam-frame">
+          <video id="webcam" autoplay playsinline muted></video>
+
+          <!-- Placeholder shown when camera is off -->
+          <div class="webcam-placeholder" id="webcam-placeholder">
+            <svg width="52" height="52" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M15 10l4.55-2.68A1 1 0 0 1 21 8.14v7.72a1 1 0 0 1-1.45.82L15 14M4 6h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" stroke="#9CA3AF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <p>Camera is off</p>
+            <span>Press "Start Camera" to begin signing</span>
+          </div>
+
+          <!-- Hand placement guide -->
+          <div class="hand-guide" id="hand-guide" aria-hidden="true">
+            <span class="corner corner-tl"></span>
+            <span class="corner corner-tr"></span>
+            <span class="corner corner-bl"></span>
+            <span class="corner corner-br"></span>
+            <span class="guide-caption">Position hands here</span>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+          <button class="btn btn-primary" id="btn-camera" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M15 10l4.55-2.68A1 1 0 0 1 21 8.14v7.72a1 1 0 0 1-1.45.82L15 14M4 6h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span id="btn-camera-label">Start Camera</span>
+          </button>
+
+          <button class="btn btn-secondary" id="btn-voice" type="button" aria-pressed="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M11 5 6 9H2v6h4l5 4V5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              <path id="voice-wave" d="M15.5 8.5a5 5 0 0 1 0 7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+            <span id="btn-voice-label">Voice Output: Off</span>
+          </button>
+
+          <button class="btn btn-ghost" id="btn-clear" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0-.87 13.14A2 2 0 0 1 16.14 21H7.86a2 2 0 0 1-1.99-1.86L5 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Clear Interface</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- RIGHT: Output column -->
+      <section class="output-column" aria-label="Interpreted text">
+
+        <div class="output-box raw-box">
+          <div class="panel-label">
+            <span>Raw Input Stream</span>
+            <span class="badge-muted" id="raw-status">Idle</span>
+          </div>
+          <div class="raw-content" id="raw-stream">
+            <span class="placeholder-text">Detected signs will stream here…</span>
+          </div>
+        </div>
+
+        <div class="output-box smoothed-box">
+          <div class="panel-label">
+            <span>AI Smoothed Sentence</span>
+            <span class="badge-accent" id="smoothed-status">Ready</span>
+          </div>
+          <div class="smoothed-content" id="smoothed-sentence" aria-live="polite">
+            <span class="placeholder-text">Your interpreted sentence will appear here.</span>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <footer class="app-footer">
+      <span>SignSpeak runs entirely in your browser — no video ever leaves this device.</span>
+    </footer>
+
+  </div>
+
+<script src="script.js"></script>
+</body>
+</html>
