@@ -1,104 +1,263 @@
-# 🖐️ Real-Time ASL Alphabet Interpreter
+# 🤟 SignSpeak: Interactive ASL Learning
 
-A localized, privacy-first web application that interprets American Sign Language (ASL) finger-spelling into alphanumeric text in real-time. By performing mathematical classification directly over localized machine learning handpose telemetry, the entire pipeline executes entirely on the user's local hardware client.
+A privacy-first, browser-based web application for learning the **static American Sign Language (ASL) alphabet** through real-time hand gesture recognition. Using your webcam, Google MediaPipe, and a custom-trained TensorFlow.js neural network, SignSpeak provides instant feedback as you practice finger-spelling—all while keeping every stage of computation entirely on your device.
+
+Unlike cloud-based vision systems, **no webcam frames or personal data are ever uploaded to a server**. The complete machine learning pipeline executes locally within your browser.
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Frontend Interface:** Semantic HTML5, CSS3 Custom Properties (Dark Slate UI Theme), Google Material Icons.
-- **Machine Learning Frame Pipeline:** TensorFlow.js Engine Core + MediaPipe Handpose Model Wrapper via script execution.
-- **Mathematical Processing:** Scaled Euclidean Distance Matrix Classification Logic.
+### Frontend
+- HTML5
+- CSS3 (Responsive UI)
+- Vanilla JavaScript (ES6)
+
+### Computer Vision
+- [Google MediaPipe Hands](https://github.com/google/mediapipe)
+- 21-point 3D Hand Landmark Detection
+
+### Machine Learning
+- [TensorFlow.js](https://github.com/tensorflow/tfjs)
+- Custom-trained Keras Sequential Neural Network (MLP)
+
+### Additional APIs
+- Web Speech API (Text-to-Speech)
 
 ---
 
 ## 🔄 System Pipeline Architecture
 
 ```text
- 🎥 Mirrored Webcam Stream
-           │
-           ▼
- 🧠 MediaPipe Handpose Model  ──► Extracts 21 3D Coordinate Nodes (x, y, z joints)
-           │
-           ▼
- 📐 Euclidean Vector Calculation ──► Converts joint distances relative to wrist base (Node 0)
-           │
-           ▼
- 📊 Scale-Invariant Normalization ──► Divides arrays by max distance to standardize hands
-           │
-           ▼
- 💾 Matrix Score Evaluation    ──► Scores vector similarities against localized weight pairs (model.json)
-           │
-           ▼
- 💻 UI Text Rendering Node      ──► Outputs absolute character projections + real-time FPS telemetry
+🎥 Webcam Stream
+      │
+      ▼
+🖐️ Google MediaPipe Hands
+      │
+      ├── Detects 21 3D Hand Landmarks (x, y, z)
+      │
+      ▼
+📐 Anchor Math Preprocessing
+      │
+      ├── Wrist shifted to (0,0,0)
+      ├── Translation removed
+      └── Scale normalization
+      │
+      ▼
+📊 Z-Score Normalization
+      │
+      ├── Uses exported statistics
+      └── Matches training pipeline
+      │
+      ▼
+🧠 TensorFlow.js Neural Network
+      │
+      ├── Dense + Dropout MLP
+      └── Predicts ASL Letter
+      │
+      ▼
+💻 Interactive Flashcard Interface
+      │
+      ├── Displays prediction
+      ├── Speaks detected letter
+      └── Advances after successful recognition
 ```
 
 ---
 
 ## ✨ Core Features
 
-- **Privacy-by-Design Execution:** 100% on-device local computation. Zero telemetry packets leave the user's browser, preventing external recording of biometric indicators.
-- **Distance-Invariant Engine:** Hand coordinates are normalized directly against the wrist node index baseline. This creates a scalar-resilient profile that works accurately whether the user sits 2 or 6 feet away from the lens.
-- **Integrated Diagnostics:** Live Framerate System Counter (FPS Telemetry Meter) tracking hardware processing levels in real-time.
-- **Skeletal UI Mapping Layer:** Renders a 21-node responsive coordinate canvas wireframe directly above the mirrored camera feed.
+- 🎥 **Real-Time Hand Tracking**
+  - Utilizes Google MediaPipe to extract **21 three-dimensional hand landmarks** in real time.
+
+- 🔒 **100% On-Device AI**
+  - Powered by TensorFlow.js, all neural network inference runs locally inside the browser.
+  - No images, videos, or personal data are uploaded to any server.
+
+- 🎮 **Interactive Flashcard Learning**
+  - Practice each ASL letter through a responsive flashcard interface.
+  - The application automatically advances once the correct sign is detected.
+
+- 📍 **Position & Distance Independent Recognition**
+  - Custom Anchor Math preprocessing removes positional and scaling differences, allowing recognition regardless of where the hand appears in the frame.
+
+- 🔊 **Smart Voice Feedback**
+  - Built-in Text-to-Speech announces recognized letters while intelligently avoiding repeated speech triggers.
 
 ---
 
-## 📦 Prerequisites & Dependencies
+## 🧠 AI Training Pipeline
 
-The project loads required dependencies dynamically through lightweight CDN distribution frameworks at initialization. You do not need to install local npm packages.
+The neural network powering SignSpeak was trained using a stabilized preprocessing pipeline designed for reliable real-time browser inference.
 
-**Embedded CDNs:**
-- TensorFlow.js Core Engine (v3.x)
-- MediaPipe Handpose Model Pipeline
-- Google Material Icons Stylesheet
+### 1. Landmark Extraction
+
+Google MediaPipe Hands processes each training image and extracts:
+
+- 21 hand landmarks
+- 3 coordinates per landmark (`x`, `y`, `z`)
+
+These landmarks are exported into a structured CSV dataset for training.
 
 ---
 
-## 🚀 Clear Setup & Run Instructions
+### 2. Anchor Math
 
-Because the application imports weight configurations locally (`model.json`) via explicit asynchronous fetch calls, modern browsers block direct localized directory access paths (`file:///`) due to CORS security settings. The application must be initialized from a basic local web server environment.
+To remove dependence on camera position:
 
-### Step-by-Step Initialization
+- The wrist landmark (Landmark 0) becomes the origin `(0,0,0)`.
+- Every landmark is translated relative to the wrist.
+- The hand is scaled by its maximum dimension.
 
-**1. Clone the Workspace Directory**
+This allows the model to learn the **shape of the hand** instead of its absolute position.
 
-Ensure all codebase project assets are nested together cleanly within a uniform root folder directory hierarchy:
+---
 
+### 3. Z-Score Normalization
+
+Each feature is standardized using:
+
+```text
+(value - mean) / standard deviation
 ```
-├── index.html
-├── style.css
-├── script.js
-└── model.json
+
+The calculated statistics are exported to:
+
+```text
+norm_stats.json
 ```
 
-**2. Launch a Local Server Engine**
+The web application applies these same statistics during inference, ensuring identical preprocessing to the training pipeline.
 
-Open your system terminal inside the absolute path location of your root project folder and deploy a localized runtime loop helper using Python:
+---
+
+### 4. Model Architecture
+
+The classifier is implemented as a lightweight **Keras Sequential Multi-Layer Perceptron (MLP)** consisting of:
+
+- Dense Layers
+- Dropout Layers
+
+> **Note:** `BatchNormalization` was intentionally omitted due to known TensorFlow.js export compatibility issues.
+
+---
+
+### 5. TensorFlow.js Export
+
+The trained model is exported directly into TensorFlow.js format:
+
+- `model.json`
+- `group1-shard1of1.bin`
+
+This enables fully client-side inference without requiring any backend server.
+
+---
+
+## 📁 Project Structure
+
+```text
+asl-on-device-interpreter/
+│
+├── index.html               # Main application interface
+├── style.css                # UI styling
+├── script.js                # Real-time inference & flashcard logic
+│
+├── model.json               # TensorFlow.js model architecture
+├── group1-shard1of1.bin     # Trained model weights
+├── norm_stats.json          # Normalization statistics
+│
+└── README.md                # Project documentation
+```
+
+---
+
+## 🚀 Getting Started
+
+### 1. Clone the Repository
 
 ```bash
-# For Python 3.x installations
+git clone https://github.com/yourusername/asl-on-device-interpreter.git
+cd asl-on-device-interpreter
+```
+
+Replace `yourusername` with your GitHub username.
+
+---
+
+### 2. Verify the Model Files
+
+Ensure the following files are located in the project root:
+
+```text
+model.json
+group1-shard1of1.bin
+norm_stats.json
+```
+
+---
+
+### 3. Start a Local Server
+
+Because browsers block local file loading (`file://`) for model assets due to CORS restrictions, the project must be served through a local web server.
+
+If Python is installed:
+
+```bash
 python -m http.server 8000
 ```
 
-**3. Execute the Application UI**
+---
 
-Launch any modern secure web browser platform interface window and navigate to the local runtime path address:
+### 4. Open the Application
 
-```
+Navigate to:
+
+```text
 http://localhost:8000
 ```
 
+Click **Start Camera**, grant webcam permission, and begin practicing the ASL alphabet.
+
 ---
 
-## 📥 Sample Inputs vs. 📤 Expected Outputs
+## 🔐 Privacy
 
-The translation model processes physical gestures captured through your live camera feed.
+SignSpeak is designed with privacy as a core principle.
 
-| Sample Input (Physical Gesture) | Processing Metric Matrix | Expected UI Output |
-|---|---|---|
-| Closed fist shape, thumb resting tightly along the outer margin edge of the index finger digit. | Euclidean variance bounds hit high parity against A array layers. | Detected Letter: **A**<br>Confidence Meter: 94% |
-| Flat opened palm, all four primary fingers held straight up together, thumb folded flat across inner palm area. | Coordinate tracking maps high similarity indicators matching B matrix indices. | Detected Letter: **B**<br>Confidence Meter: 89% |
-| All 5 finger positions curved outward symmetrically, forming an open horseshoe layout configuration profile. | Vectors establish maximum geometric value closeness relative to C configurations. | Detected Letter: **C**<br>Confidence Meter: 91% |
+- ✅ No cloud processing
+- ✅ No backend server
+- ✅ No webcam uploads
+- ✅ No image storage
+- ✅ No biometric data collection
+- ✅ 100% on-device inference
 
-> 💡 **System Telemetry Indicator Note:** On a standard consumer laptop environment, you can expect an active runtime processing speed tracking score boundary between 24 to 30 FPS continuously during analysis loops.
+---
+
+## ⚖️ Licenses and Acknowledgements
+
+This project utilizes several open-source resources, frameworks, and datasets. The original source code authored in this repository is released under the MIT License.
+
+Third-party components and datasets are gratefully acknowledged as follows:
+
+- **ASL Training Dataset:** The static neural network was trained using the **[American Sign Language Letters Dataset](https://data.mendeley.com/datasets/jdyksv2jhh/1)** sourced from Mendeley Data. This dataset is legally licensed and utilized under the Creative Commons Attribution 4.0 International (CC BY 4.0) license.
+
+- **Computer Vision Framework:** Hand tracking and landmark extraction are powered by **[Google MediaPipe](https://github.com/google/mediapipe)**, which is licensed under the Apache License 2.0.
+
+- **Machine Learning Backend:** On-device neural network inference in the browser is powered by **[TensorFlow.js](https://github.com/tensorflow/tfjs)**, which is licensed under the Apache License 2.0.
+
+---
+
+## 🌟 Future Improvements
+
+- Dynamic ASL word recognition
+- Sentence-level interpretation
+- Progress tracking
+- Difficulty levels and quizzes
+- Mobile optimization
+- Confidence visualization
+- Support for additional sign languages
+- Custom practice mode
+
+---
+
+Built with ❤️ to make learning American Sign Language more interactive, accessible, and privacy-friendly.
