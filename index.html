@@ -3,108 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SignSpeak — On-Device ASL to Speech Interpreter</title>
+    <title>SignSpeak ABC — Learn the ASL Alphabet Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
     <!-- Explicit directory resolution for Vercel production hosting -->
     <link rel="stylesheet" href="./style.css">
 </head>
 <body>
     <div class="app">
-        <!-- Application Header Layout -->
+        <!-- Application Header -->
         <header class="app-header">
-            <div class="header-left">
-                <div class="brand">
-                    <div class="brand-mark">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-                    </div>
-                    <div class="brand-text">
-                        <h1>SignSpeak</h1>
-                        <p>On-Device ASL to Speech Interpreter</p>
-                    </div>
-                </div>
-                <div class="local-pill">
-                    <div class="pill-dot"></div>
-                    <span>LOCAL_AI</span>
+            <div class="brand">
+                <div class="brand-mark" aria-hidden="true">🤟</div>
+                <div class="brand-text">
+                    <h1>SignSpeak ABC</h1>
+                    <p>Learn the ASL alphabet with your camera!</p>
                 </div>
             </div>
 
-            <div class="header-right">
-                <div class="stat-panel">
-                    <div class="stat">
-                        <span class="stat-label">Model Status</span>
-                        <span id="model-status" class="stat-value">LOADING</span>
-                    </div>
-                    <div class="stat-divider"></div>
-                    <div class="stat">
-                        <span class="stat-label">Inference</span>
-                        <span id="inference-time" class="stat-value">0<small>ms</small></span>
-                    </div>
-                </div>
+            <div id="camera-status-pill" class="camera-status-pill">
+                <div id="status-dot" class="status-dot"></div>
+                <span id="camera-status-text">Warming up the camera…</span>
             </div>
         </header>
 
-        <!-- Main Workspace View Layout -->
+        <!-- Letter progress trail: fills in as the child matches each sign -->
+        <div id="progress-trail" class="progress-trail" aria-label="Letters learned so far"></div>
+
+        <!-- Main Workspace View -->
         <main class="main-grid">
-            <!-- Left Column: Vision Capture Processing Engine -->
+            <!-- Left Column: Webcam -->
             <div class="webcam-column">
                 <div class="panel-label">
-                    <span>Camera Environment Feed</span>
-                    <div id="live-indicator" class="rec-indicator">
-                        <div class="rec-dot"></div>
-                        <span id="live-status-text">OFFLINE</span>
-                    </div>
+                    <span>👀 Your Camera</span>
                 </div>
 
                 <div class="webcam-frame">
-                    <!-- Standard video framework binding element -->
                     <video id="webcam" autoplay playsinline muted></video>
 
-                    <!-- Initial State UI Placeholder element block -->
                     <div id="placeholder-view" class="webcam-placeholder">
-                        <svg width="48" height="44" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                        <p id="pipeline-status-log">System Loading Initialization Parameters...</p>
-                        <span>Grant camera hardware access permissions when requested</span>
+                        <div class="placeholder-icon">📷</div>
+                        <p id="pipeline-status-log">Getting the magic camera ready…</p>
+                        <span>We'll ask to use your camera — just say yes!</span>
                     </div>
 
-                    <!-- Alignment Placement Guide element block overlay -->
                     <div id="placement-guide" class="hand-guide">
                         <div class="corner corner-tl"></div>
                         <div class="corner corner-tr"></div>
                         <div class="corner corner-bl"></div>
                         <div class="corner corner-br"></div>
-                        <div class="guide-caption">POSITION SIGNING HAND HERE</div>
+                        <div class="guide-caption">Put your hand here! ✋</div>
                     </div>
                 </div>
 
-                <!-- Interface Interaction Infrastructure controls wrapper -->
                 <div class="controls">
-                    <button id="toggle-guide-btn" class="btn btn-secondary">Hide Guide Frame</button>
-                    <button id="clear-buffer-btn" class="btn btn-ghost">Reset Smoothing Buffer</button>
+                    <button id="toggle-guide-btn" class="btn btn-secondary">Hide Hand Guide</button>
+                    <button id="skip-letter-btn" class="btn btn-ghost">Skip This Letter 🔀</button>
                 </div>
             </div>
 
-            <!-- Right Column: Model Activations & Output Displays -->
+            <!-- Right Column: Flashcard Game -->
             <div class="output-column">
                 <div class="panel-label">
-                    <span>Inference Readout Summary</span>
+                    <span>🃏 Your Flashcard</span>
                 </div>
 
-                <!-- Output Display Window Structure -->
-                <div class="output-box smoothed-box">
-                    <span class="badge-accent">Smoothed Real-Time Prediction</span>
-                    <div id="smoothed-output" class="smoothed-content">
-                        <span class="placeholder-text">Awaiting sign detection sequence matrix activation...</span>
+                <div class="flashcard-box" id="flashcard-box">
+                    <div class="flashcard-stack-behind"></div>
+                    <div class="flashcard-stack-behind-2"></div>
+
+                    <div class="flashcard-front" id="flashcard-front">
+                        <span class="flashcard-eyebrow" id="flashcard-eyebrow">Can you copy this sign?</span>
+
+                        <div class="flashcard-image-wrap">
+                            <img id="flashcard-image" src="./assets/flashcards/A.svg" alt="Sign for the letter A">
+                            <div id="flashcard-letter-fallback" class="flashcard-letter-fallback">A</div>
+                        </div>
+
+                        <div class="flashcard-target-letter" id="flashcard-target-letter">A</div>
+                        <span class="flashcard-hint" id="flashcard-hint">Letter 1 of 24</span>
+
+                        <div class="celebration-banner" id="celebration-banner">
+                            <span class="celebration-emoji" aria-hidden="true">🎉</span>
+                            <span>Awesome! You did it!</span>
+                        </div>
+
+                        <div class="confetti" id="confetti"></div>
                     </div>
-                </div>
-
-                <div class="output-box raw-box">
-                    <span class="badge-muted">Raw Log Stream Console</span>
-                    <div id="console-log" class="raw-content">Awaiting local model array initialization...</div>
                 </div>
             </div>
         </main>
 
         <footer class="app-footer">
-            SignSpeak Core Engine Pipeline Running Local Browser Models via WebGL Web Workers.
+            Made with 💛 for little hands learning big words.
         </footer>
     </div>
 
