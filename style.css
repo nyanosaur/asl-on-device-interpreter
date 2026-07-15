@@ -1,231 +1,239 @@
-/* Base App Layout */
-body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: #f4f7f6;
-  margin: 0;
-  padding: 20px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
+:root {
+    --bg-color: #0f172a;
+    --card-bg: #1e293b;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --accent-blue: #38bdf8;
+    --accent-green: #34d399;
+    --accent-red: #f87171;
+    --border-color: #334155;
 }
 
-.app-container {
-  background-color: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  padding: 30px;
-  max-width: 700px;
-  width: 100%;
-  text-align: center;
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    padding: 2rem 1rem;
+    min-height: 100vh;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
 }
 
 h1 {
-  color: #2c3e50;
-  margin-top: 0;
+    font-size: 2.25rem;
+    font-weight: 700;
+    margin-bottom: 2rem;
+    text-align: center;
+    background: linear-gradient(to right, #38bdf8, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
-/* Video Frame Positioning */
-.video-container {
-  position: relative;
-  width: 640px;
-  height: 480px;
-  background-color: #000;
-  border-radius: 8px;
-  overflow: hidden;
-  margin: 0 auto 20px auto;
+.main-content {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+}
+
+@media (min-width: 900px) {
+    .main-content {
+        grid-template-columns: 2fr 1fr;
+    }
+}
+
+/* Video Frame System */
+.video-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.video-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    background-color: #020617;
+    border-radius: 1rem;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+}
+
+#webcam, #output {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+#output {
+    z-index: 5;
+    transform: scaleX(-1); /* Mirror output canvas */
 }
 
 #webcam {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+    transform: scaleX(-1); /* Mirror video feed */
 }
 
-#output-canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 2;
-  pointer-events: none;
+/* Loading HUD Overlay */
+.overlay {
+    position: absolute;
+    inset: 0;
+    background-color: rgba(15, 23, 42, 0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    z-index: 10;
+    transition: opacity 0.4s ease;
 }
 
-/* Controls and Prediction Output styling */
-.controls-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 15px;
+.spinner {
+    width: 3rem;
+    height: 3rem;
+    border: 4px solid var(--border-color);
+    border-top-color: var(--accent-blue);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
 }
 
-.prediction-box {
-  background-color: #eef2f7;
-  padding: 15px 30px;
-  border-radius: 8px;
-  width: 80%;
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
-.prediction-box h3 {
-  margin: 0 0 5px 0;
-  color: #7f8c8d;
-  font-size: 14px;
-  text-transform: uppercase;
+#loading-text {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
 }
 
-#prediction-text {
-  font-size: 24px;
-  font-weight: bold;
-  color: #2c3e50;
+/* Control Elements */
+.controls {
+    display: flex;
+    justify-content: center;
 }
 
-.button-group {
-  display: flex;
-  gap: 15px;
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: var(--accent-blue);
+    color: #0f172a;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
 }
 
-/* Standardized Custom Buttons */
-.btn-primary, .btn-secondary {
-  border: none;
-  padding: 12px 24px;
-  font-size: 16px;
-  font-weight: 600;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.1s ease;
+.btn:hover:not(.disabled) {
+    opacity: 0.9;
+    transform: translateY(-1px);
 }
 
-.btn-primary {
-  background-color: #2ecc71;
-  color: white;
+.btn.disabled {
+    background-color: var(--border-color);
+    color: var(--text-secondary);
+    cursor: not-allowed;
 }
 
-.btn-primary:hover {
-  background-color: #27ae60;
+/* Cards & Layout Architecture */
+.side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
 }
 
-.btn-secondary {
-  background-color: #3498db;
-  color: white;
+.card {
+    background-color: var(--card-bg);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    border: 1px solid var(--border-color);
 }
 
-.btn-secondary:hover {
-  background-color: #2980b9;
+.card h2 {
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
 }
 
-.btn-primary:active, .btn-secondary:active {
-  transform: scale(0.98);
+/* Letter Output Box */
+#prediction-output {
+    font-size: 6rem;
+    font-weight: 800;
+    text-align: center;
+    color: var(--accent-green);
+    margin: 1rem 0;
+    line-height: 1;
 }
 
-/* ==========================================================================
-   Hints Popup Modal Custom CSS
-   ========================================================================== */
-
-/* Dark Overlay Backing */
-.hints-modal {
-  display: none; 
-  position: fixed; 
-  z-index: 9999; 
-  left: 0;
-  top: 0;
-  width: 100%; 
-  height: 100%; 
-  overflow: auto; 
-  background-color: rgba(0, 0, 0, 0.55); 
-  backdrop-filter: blur(4px);
+.confidence-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
 }
 
-/* Modal Content Card Container */
-.hints-modal-content {
-  background-color: #ffffff;
-  margin: 4% auto; 
-  padding: 25px 30px;
-  border-radius: 14px;
-  width: 85%; 
-  max-width: 900px;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
-  color: #333;
-  text-align: left;
+.confidence-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
 }
 
-.hints-subtitle {
-  color: #7f8c8d;
-  margin-top: -8px;
-  margin-bottom: 22px;
-  font-size: 14px;
+.progress-bar {
+    width: 100%;
+    height: 0.5rem;
+    background-color: var(--border-color);
+    border-radius: 9999px;
+    overflow: hidden;
 }
 
-/* Exit 'x' Button Alignment */
-.hints-close-btn {
-  color: #bdc3c7;
-  float: right;
-  font-size: 32px;
-  font-weight: bold;
-  cursor: pointer;
-  line-height: 24px;
+#confidence-bar {
+    height: 100%;
+    background-color: var(--accent-green);
+    transition: width 0.15s linear;
 }
 
-.hints-close-btn:hover {
-  color: #c0392b;
+#confidence-text {
+    font-size: 0.85rem;
+    text-align: right;
+    font-weight: 600;
 }
 
-/* Layout Framework for Alphabet Grid */
-.hints-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
-  gap: 14px;
-  max-height: 62vh;
-  overflow-y: auto;
-  padding-right: 8px;
+/* Health Metrics Interface */
+.status-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
 }
 
-/* Individual Hint Card Blocks */
-.hint-card {
-  background: #f8f9fa;
-  border: 1px solid #eaeded;
-  border-radius: 8px;
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+.status-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.95rem;
 }
 
-.hint-card:hover {
-  transform: translateY(-2px);
-  background: #ffffff;
-  border-color: #3498db;
-  box-shadow: 0 4px 10px rgba(52, 152, 219, 0.15);
+.indicator {
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 50%;
 }
 
-.hint-card strong {
-  font-size: 26px;
-  color: #3498db;
-  margin-bottom: 6px;
-}
-
-.hint-card .desc {
-  font-size: 12px;
-  line-height: 1.45;
-  color: #555;
-}
-
-/* Custom Scrollbar for Grid Container */
-.hints-grid::-webkit-scrollbar {
-  width: 6px;
-}
-.hints-grid::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 10px;
-}
-.hints-grid::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 10px;
-}
-.hints-grid::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
+.indicator.red { background-color: var(--accent-red); }
+.indicator.green { background-color: var(--accent-green); }
+.indicator.gray { background-color: var(--text-secondary); }
