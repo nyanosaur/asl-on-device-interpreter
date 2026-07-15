@@ -6,7 +6,7 @@ const loadingOverlay = document.getElementById('loading-overlay');
 const consoleLog = document.getElementById('console-log');
 
 // Configuration Constants
-const MODEL_PATH = 'model.json';
+const MODEL_PATH = './model.json';
 const BUFFER_SIZE = 5;
 const ASL_ALPHABET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y'];
 
