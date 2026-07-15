@@ -23,11 +23,14 @@
   const statInference = document.getElementById('stat-inference');
   const statFps        = document.getElementById('stat-fps');
 
-  // Flashcard DOM (Image elements completely removed!)
+  // Flashcard DOM
   const flashcardCard     = document.getElementById('flashcard-card');
   const targetCharEl      = document.getElementById('target-char');
   const targetSubtitleEl  = document.getElementById('flashcard-subtitle');
   const progressEl        = document.getElementById('flashcard-progress');
+  const targetImgEl       = document.getElementById('target-sign-img');
+  const targetPlaceholder = document.getElementById('target-img-placeholder');
+  const btnSkip           = document.getElementById('btn-skip');
 
   const state = {
     cameraOn: false, voiceOn: false, mediaStream: null, 
@@ -54,6 +57,20 @@
     
     if (flashcardCard) flashcardCard.classList.remove('success');
     isSuccessPause = false;
+
+    // Safely load the asset image
+    if (targetImgEl && targetPlaceholder) {
+        targetImgEl.style.display = 'block';
+        targetPlaceholder.style.display = 'none';
+        targetImgEl.src = `assets/signs/${letter}.png`;
+
+        // If the image doesn't exist, show the placeholder text instead of crashing
+        targetImgEl.onerror = () => {
+            targetImgEl.style.display = 'none';
+            targetPlaceholder.style.display = 'block';
+            targetPlaceholder.innerHTML = `Missing image:<br><code>assets/signs/${letter}.png</code>`;
+        };
+    }
   }
   
   // Initialize first card
@@ -235,6 +252,14 @@
   }
 
   if (btnCamera) btnCamera.addEventListener('click', () => { state.cameraOn ? stopCamera() : startCamera(); });
+
+  // Handle Skip Button Click
+  if (btnSkip) {
+      btnSkip.addEventListener('click', () => {
+          targetIndex = (targetIndex + 1) % CLASSES.length;
+          loadFlashcard();
+      });
+  }
 
   function speak(text) {
     if (!state.voiceOn || !('speechSynthesis' in window)) return;
