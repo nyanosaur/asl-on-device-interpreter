@@ -3,41 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SignSpeak: ASL Real-Time Interpreter</title>
+    <title>SignSpeak — On-Device ASL to Speech Interpreter</title>
+    <!-- Explicit directory resolution for Vercel production hosting -->
     <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>SignSpeak</h1>
-        <p class="subtitle">Real-time Static ASL Alphabet Interpreter (A-Y, excluding J)</p>
-        
-        <div class="interface-grid">
-            <div class="video-container">
-                <video id="webcam" autoplay playsinline muted></video>
-                <div id="loading-overlay" class="overlay">
-                    <div class="spinner"></div>
-                    <p id="status-text">Loading AI Models...</p>
+    <div class="app">
+        <!-- Application Header Layout -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="brand">
+                    <div class="brand-mark">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                    </div>
+                    <div class="brand-text">
+                        <h1>SignSpeak</h1>
+                        <p>On-Device ASL to Speech Interpreter</p>
+                    </div>
+                </div>
+                <div class="local-pill">
+                    <div class="pill-dot"></div>
+                    <span>LOCAL_AI</span>
                 </div>
             </div>
-            
-            <div class="output-container">
-                <div class="card">
-                    <h3>Detected Letter</h3>
-                    <div id="detected-letter" class="letter-display">-</div>
-                </div>
-                
-                <div class="card console-card">
-                    <h3>System Logs</h3>
-                    <div id="console-log" class="console-box">Initializing pipeline...</div>
+
+            <div class="header-right">
+                <div class="stat-panel">
+                    <div class="stat">
+                        <span class="stat-label">Model Status</span>
+                        <span id="model-status" class="stat-value">LOADING</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat">
+                        <span class="stat-label">Inference</span>
+                        <span id="inference-time" class="stat-value">0<small>ms</small></span>
+                    </div>
                 </div>
             </div>
-        </div>
+        </header>
+
+        <!-- Main Workspace View Layout -->
+        <main class="main-grid">
+            <!-- Left Column: Vision Capture Processing Engine -->
+            <div class="webcam-column">
+                <div class="panel-label">
+                    <span>Camera Environment Feed</span>
+                    <div id="live-indicator" class="rec-indicator">
+                        <div class="rec-dot"></div>
+                        <span id="live-status-text">OFFLINE</span>
+                    </div>
+                </div>
+
+                <div class="webcam-frame">
+                    <!-- Standard video framework binding element -->
+                    <video id="webcam" autoplay playsinline muted></video>
+
+                    <!-- Initial State UI Placeholder element block -->
+                    <div id="placeholder-view" class="webcam-placeholder">
+                        <svg width="48" height="44" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        <p id="pipeline-status-log">System Loading Initialization Parameters...</p>
+                        <span>Grant camera hardware access permissions when requested</span>
+                    </div>
+
+                    <!-- Alignment Placement Guide element block overlay -->
+                    <div id="placement-guide" class="hand-guide">
+                        <div class="corner corner-tl"></div>
+                        <div class="corner corner-tr"></div>
+                        <div class="corner corner-bl"></div>
+                        <div class="corner corner-br"></div>
+                        <div class="guide-caption">POSITION SIGNING HAND HERE</div>
+                    </div>
+                </div>
+
+                <!-- Interface Interaction Infrastructure controls wrapper -->
+                <div class="controls">
+                    <button id="toggle-guide-btn" class="btn btn-secondary">Hide Guide Frame</button>
+                    <button id="clear-buffer-btn" class="btn btn-ghost">Reset Smoothing Buffer</button>
+                </div>
+            </div>
+
+            <!-- Right Column: Model Activations & Output Displays -->
+            <div class="output-column">
+                <div class="panel-label">
+                    <span>Inference Readout Summary</span>
+                </div>
+
+                <!-- Output Display Window Structure -->
+                <div class="output-box smoothed-box">
+                    <span class="badge-accent">Smoothed Real-Time Prediction</span>
+                    <div id="smoothed-output" class="smoothed-content">
+                        <span class="placeholder-text">Awaiting sign detection sequence matrix activation...</span>
+                    </div>
+                </div>
+
+                <div class="output-box raw-box">
+                    <span class="badge-muted">Raw Log Stream Console</span>
+                    <div id="console-log" class="raw-content">Awaiting local model array initialization...</div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="app-footer">
+            SignSpeak Core Engine Pipeline Running Local Browser Models via WebGL Web Workers.
+        </footer>
     </div>
 
-    <!-- LOAD LOCAL AI FRAMEWORKS -->
+    <!-- AI Framework Dependency Linkage Stack -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
-    <script src="script.js"></script>
+    <!-- Explicit directory resolution for Vercel production hosting -->
+    <script src="./script.js"></script>
 </body>
 </html>
