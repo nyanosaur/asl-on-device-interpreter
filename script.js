@@ -1,329 +1,249 @@
-// Target Document Object Model Binding References
-const videoElement = document.getElementById('webcam');
-const placeholderView = document.getElementById('placeholder-view');
-const pipelineStatusLog = document.getElementById('pipeline-status-log');
-const placementGuide = document.getElementById('placement-guide');
-const cameraStatusPill = document.getElementById('camera-status-pill');
-const statusDot = document.getElementById('status-dot');
-const cameraStatusText = document.getElementById('camera-status-text');
-const progressTrail = document.getElementById('progress-trail');
+(() => {
+  'use strict';
+  const MIRROR_CAMERA = false; 
+  const USE_Z_SCORE = true;
+  // =======================================================================
 
-const flashcardFront = document.getElementById('flashcard-front');
-const flashcardEyebrow = document.getElementById('flashcard-eyebrow');
-const flashcardImage = document.getElementById('flashcard-image');
-const flashcardLetterFallback = document.getElementById('flashcard-letter-fallback');
-const flashcardTargetLetter = document.getElementById('flashcard-target-letter');
-const flashcardHint = document.getElementById('flashcard-hint');
-const confettiContainer = document.getElementById('confetti');
+  /* ---------------------------- DOM references ---------------------------- */
+  const video            = document.getElementById('webcam');
+  const webcamPlaceholder = document.getElementById('webcam-placeholder');
+  const handGuide         = document.getElementById('hand-guide');
+  const recIndicator      = document.getElementById('rec-indicator');
+  const btnCamera      = document.getElementById('btn-camera');
+  const btnCameraLabel = document.getElementById('btn-camera-label');
+  const btnVoice       = document.getElementById('btn-voice');
+  const btnVoiceLabel  = document.getElementById('btn-voice-label');
+  const smoothedEl    = document.getElementById('smoothed-sentence');
+  const smoothedStatusEl = document.getElementById('smoothed-status');
+  const statInference = document.getElementById('stat-inference');
+  const statFps        = document.getElementById('stat-fps');
 
-// Control Buttons DOM Access Bindings
-const toggleGuideBtn = document.getElementById('toggle-guide-btn');
-const skipLetterBtn = document.getElementById('skip-letter-btn');
+  // Flashcard DOM
+  const flashcardCard     = document.getElementById('flashcard-card');
+  const targetCharEl      = document.getElementById('target-char');
+  const targetSubtitleEl  = document.getElementById('flashcard-subtitle');
+  const targetImgEl       = document.getElementById('target-sign-img');
+  const targetPlaceholder = document.getElementById('target-img-placeholder');
+  const progressEl        = document.getElementById('flashcard-progress');
 
-// System Operational Pipeline Constants
-const MODEL_PATH = './model.json';
-const BUFFER_SIZE = 5;
-const GAME_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y'];
-const CELEBRATION_DELAY_MS = 1500;
-const CONFETTI_COLORS = ['#FFC33D', '#FF7A66', '#4FB6E8', '#45B478', '#F5A300'];
+  const state = {
+    cameraOn: false, voiceOn: false, mediaStream: null, 
+    isDetecting: false, framesSinceLastFps: 0, lastFpsTime: performance.now()
+  };
 
-// Application Pipeline State Registers
-let model = null;
-let handsPipeline = null;
-let camera = null;
-let predictionBuffer = [];
+  const CLASSES = [
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 
+    'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 
+    'T', 'U', 'V', 'W', 'X', 'Y'
+  ];
+  
+  let predictionBuffer = [];
+  let targetIndex = 0;
+  let isSuccessPause = false; 
 
-// Game State Registers
-let letterQueue = [];
-let currentTargetLetter = '';
-let letterIndex = 0;
-let learnedLetters = new Set();
-let isCelebrating = false;
+  function loadFlashcard() {
+    const letter = CLASSES[targetIndex];
+    targetCharEl.textContent = letter;
+    targetSubtitleEl.textContent = letter;
+    progressEl.textContent = `Letter ${targetIndex + 1} of ${CLASSES.length}`;
+    flashcardCard.classList.remove('success');
+    isSuccessPause = false;
 
-// Simple dev-console logger (no on-screen readout for players)
-function logSystemStatus(message) {
-    const timestamp = new Date().toLocaleTimeString();
-    console.log(`[${timestamp}] ${message}`);
-}
+    targetImgEl.style.display = 'block';
+    targetPlaceholder.style.display = 'none';
+    targetImgEl.src = `assets/signs/${letter}.png`;
+    targetImgEl.onerror = () => {
+        targetImgEl.style.display = 'none';
+        targetPlaceholder.style.display = 'block';
+        targetPlaceholder.innerHTML = `Image missing:<br><code>assets/signs/${letter}.png</code>`;
+    };
+  }
+  loadFlashcard();
 
-// ============================= Game setup helpers ============================= //
+  let tfModel, hands, normStats; // <--- Ensure normStats is declared here
 
-// Fisher-Yates shuffle so letters appear in a fresh random order each round,
-// with a guard so the same letter never plays twice in a row.
-function buildShuffledQueue(avoidFirst) {
-    const shuffled = [...GAME_LETTERS];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    if (avoidFirst && shuffled[0] === avoidFirst && shuffled.length > 1) {
-        [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
-    }
-    return shuffled;
-}
-
-function buildProgressTrail() {
-    progressTrail.innerHTML = '';
-    GAME_LETTERS.forEach((letter) => {
-        const dot = document.createElement('div');
-        dot.className = 'progress-dot';
-        dot.id = `progress-dot-${letter}`;
-        dot.innerText = letter;
-        progressTrail.appendChild(dot);
-    });
-}
-
-function updateProgressTrail() {
-    GAME_LETTERS.forEach((letter) => {
-        const dot = document.getElementById(`progress-dot-${letter}`);
-        if (!dot) return;
-        dot.classList.toggle('is-learned', learnedLetters.has(letter));
-        dot.classList.toggle('is-current', letter === currentTargetLetter && !learnedLetters.has(letter));
-    });
-}
-
-function buildConfettiPieces() {
-    confettiContainer.innerHTML = '';
-    for (let i = 0; i < 18; i++) {
-        const piece = document.createElement('span');
-        piece.className = 'confetti-piece';
-        piece.style.left = `${Math.random() * 100}%`;
-        piece.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
-        piece.style.animationDelay = `${Math.random() * 0.25}s`;
-        confettiContainer.appendChild(piece);
-    }
-}
-
-// Renders the active flashcard, with a graceful fallback to a big letter
-// if the sign illustration for that letter isn't available yet.
-function renderFlashcard(letter) {
-    currentTargetLetter = letter;
-    flashcardTargetLetter.innerText = letter;
-    flashcardHint.innerText = `Letter ${letterIndex + 1} of ${GAME_LETTERS.length}`;
-
-    flashcardImage.classList.remove('is-hidden');
-    flashcardLetterFallback.classList.remove('is-visible');
-    flashcardLetterFallback.innerText = letter;
-    flashcardImage.src = `./assets/flashcards/${letter}.svg`;
-    flashcardImage.alt = `Sign for the letter ${letter}`;
-
-    updateProgressTrail();
-}
-
-flashcardImage.addEventListener('error', () => {
-    flashcardImage.classList.add('is-hidden');
-    flashcardLetterFallback.classList.add('is-visible');
-});
-
-function advanceToNextLetter() {
-    letterIndex++;
-    if (letterIndex >= letterQueue.length) {
-        letterQueue = buildShuffledQueue(currentTargetLetter);
-        letterIndex = 0;
-    }
-    renderFlashcard(letterQueue[letterIndex]);
-}
-
-function startNewGame() {
-    letterQueue = buildShuffledQueue();
-    letterIndex = 0;
-    learnedLetters = new Set();
-    buildProgressTrail();
-    buildConfettiPieces();
-    renderFlashcard(letterQueue[0]);
-}
-
-// ============================= Camera status helpers ============================= //
-
-function setCameraStatus(text, state) {
-    cameraStatusText.innerText = text;
-    cameraStatusPill.classList.remove('is-live', 'is-error');
-    if (state) cameraStatusPill.classList.add(state);
-}
-
-// ============================= Model + hand tracking pipeline ============================= //
-
-// 1. Model Initialization
-async function loadTensorflowModel() {
+  async function initializeAI() {
     try {
-        logSystemStatus('Loading local model arrays...');
-        pipelineStatusLog.innerText = 'Getting the magic camera ready…';
+      // --- NEW: OBLITERATE CACHE & LOAD NORM STATS ---
+      // This stops GitHub Pages from holding onto the broken model files
+      if ('caches' in window) {
+          try {
+              const cacheNames = await caches.keys();
+              for (const name of cacheNames) { await caches.delete(name); }
+          } catch (e) {}
+      }
 
-        // Non-strict layout compilation resolves Keras 3 schema variations smoothly
-        model = await tf.loadLayersModel(MODEL_PATH, { strict: false });
-
-        logSystemStatus('Model loaded cleanly.');
-    } catch (error) {
-        logSystemStatus(`Model crash state flag: ${error.message}`);
-        pipelineStatusLog.innerText = 'Oops! We had trouble loading the game.';
-        setCameraStatus('Having trouble getting ready 😕', 'is-error');
-        throw error;
+      const cacheBuster = `?t=${new Date().getTime()}`;
+      
+      // Fetch the normalization stats so the JS matches the Python math
+      const statsResponse = await fetch(`./norm_stats.json${cacheBuster}`);
+      normStats = await statsResponse.json();
+      
+      // Load the Model (ensure the path is './model.json' since it is in your root folder)
+      tfModel = await tf.loadLayersModel(`./model.json${cacheBuster}`, {
+          requestInit: { cache: 'no-store' },
+          strict: false
+      });
+      
+      hands = new Hands({locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+      }});
+      hands.setOptions({
+        maxNumHands: 1, modelComplexity: 1,
+        minDetectionConfidence: 0.5, minTrackingConfidence: 0.5
+      });
+      hands.onResults(onMediaPipeResults);
+      console.log("AI Loaded successfully with FRESH weights!");
+    } catch (err) {
+      console.error("Failed to load AI models:", err);
+      smoothedEl.innerHTML = `<span class="placeholder-text" style="color:var(--danger);">Error loading AI weights. Check console.</span>`;
     }
-}
+  }
+  initializeAI();
 
-// 2. Transformative Spatial Normalization Mathematics (Position & Scale Invariance)
-function normalizeHandLandmarks(landmarks) {
-    const wristAnchor = landmarks[0];
-    let zeroAnchoredFeatures = [];
+  async function cameraLoop() {
+    if (!state.cameraOn || !video.videoWidth || !hands || !tfModel || !normStats) return;
 
-    // Zero-anchor relative translation offset calculations step
-    for (let i = 0; i < landmarks.length; i++) {
-        zeroAnchoredFeatures.push(landmarks[i].x - wristAnchor.x);
-        zeroAnchoredFeatures.push(landmarks[i].y - wristAnchor.y);
-        zeroAnchoredFeatures.push(landmarks[i].z - wristAnchor.z);
+    if (!state.isDetecting) {
+      state.isDetecting = true;
+      const t0 = performance.now();
+      await hands.send({image: video});
+      statInference.innerHTML = `${(performance.now() - t0).toFixed(0)}<small>ms</small>`;
+      state.isDetecting = false;
     }
 
-    // Scale parameter extraction factor adjustments block
-    const absoluteMaxMagnitude = Math.max(...zeroAnchoredFeatures.map(Math.abs));
-    if (absoluteMaxMagnitude > 0) {
-        zeroAnchoredFeatures = zeroAnchoredFeatures.map(value => value / absoluteMaxMagnitude);
+    state.framesSinceLastFps++;
+    if (performance.now() - state.lastFpsTime >= 1000) {
+      statFps.innerHTML = `${state.framesSinceLastFps}<small>fps</small>`;
+      state.framesSinceLastFps = 0;
+      state.lastFpsTime = performance.now();
     }
+    requestAnimationFrame(cameraLoop);
+  }
 
-    return zeroAnchoredFeatures; // Flattens precisely to a 63-dimensional matrix input profile
-}
+  function onMediaPipeResults(results) {
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+      const landmarks = results.multiHandLandmarks[0];
 
-// 3. Frame Smoothing Window Context Filter Function
-function processBufferSmoothing(newPredictionRaw) {
-    predictionBuffer.push(newPredictionRaw);
-    if (predictionBuffer.length > BUFFER_SIZE) {
-        predictionBuffer.shift();
-    }
+      // --- MIRROR FIX ---
+      let coords = landmarks.map(lm => [MIRROR_CAMERA ? 1.0 - lm.x : lm.x, lm.y, lm.z]);
+      
+      let wrist = coords[0];
+      let relativeCoords = coords.map(pt => [pt[0] - wrist[0], pt[1] - wrist[1], pt[2] - wrist[2]]);
+      
+      let maxDist = 0;
+      for(let pt of relativeCoords) {
+        let dist = Math.sqrt(pt[0]**2 + pt[1]**2 + pt[2]**2);
+        if(dist > maxDist) maxDist = dist;
+      }
+      if(maxDist > 1e-6) {
+        relativeCoords = relativeCoords.map(pt => [pt[0]/maxDist, pt[1]/maxDist, pt[2]/maxDist]);
+      }
 
-    const frequencyHistogram = {};
-    let dominantStabilizedClass = newPredictionRaw;
-    let peakOccurrenceCount = 0;
+      let features = [];
+      relativeCoords.forEach(pt => features.push(pt[0], pt[1], pt[2]));
 
-    for (const token of predictionBuffer) {
-        frequencyHistogram[token] = (frequencyHistogram[token] || 0) + 1;
-        if (frequencyHistogram[token] > peakOccurrenceCount) {
-            peakOccurrenceCount = frequencyHistogram[token];
-            dominantStabilizedClass = token;
+      // --- Z-SCORE NORMALIZATION (CRITICAL FOR ACCURACY) ---
+      if (USE_Z_SCORE && normStats) {
+          for (let i = 0; i < features.length; i++) {
+             let mean = normStats.mean[i] !== undefined ? normStats.mean[i] : 0;
+             let std = normStats.std[i] !== undefined ? normStats.std[i] : 1.0;
+             if (std === 0 || isNaN(std)) std = 1.0;
+             features[i] = (features[i] - mean) / std;
+          }
+      }
+
+      const tensor = tf.tensor2d([features]);
+      const prediction = tfModel.predict(tensor);
+      const probs = prediction.dataSync();
+      const maxProb = Math.max(...probs);
+      const classIdx = probs.indexOf(maxProb);
+      
+      tensor.dispose(); prediction.dispose();
+
+      let rawLetter = "?";
+      // Lowered threshold to 30% so you can clearly see what the AI is attempting to guess
+      if (maxProb > 0.30 && CLASSES && CLASSES.length > classIdx) {
+          rawLetter = CLASSES[classIdx];
+      }
+
+      predictionBuffer.push(rawLetter);
+      if (predictionBuffer.length > 5) predictionBuffer.shift();
+
+      let counts = {};
+      let maxCount = 0;
+      let smoothedLetter = "?";
+      for (let val of predictionBuffer) {
+        counts[val] = (counts[val] || 0) + 1;
+        if (counts[val] > maxCount) { maxCount = counts[val]; smoothedLetter = val; }
+      }
+
+      if (smoothedLetter !== "?") {
+        setSmoothedSentence(`${smoothedLetter} (${(maxProb * 100).toFixed(0)}%)`);
+        smoothedStatusEl.textContent = 'Active';
+
+        const targetLetter = CLASSES[targetIndex];
+        if (!isSuccessPause && smoothedLetter === targetLetter) {
+            isSuccessPause = true;
+            flashcardCard.classList.add('success');
+            speak(`Great job! That's ${targetLetter}`);
+            setTimeout(() => {
+                targetIndex = (targetIndex + 1) % CLASSES.length;
+                loadFlashcard();
+            }, 2000);
         }
-    }
+      } else {
+        setSmoothedSentence("Adjust hand...");
+      }
 
-    return dominantStabilizedClass;
-}
-
-function clearPredictionBuffer() {
-    predictionBuffer = [];
-}
-
-// 4. Celebration + voice feedback engine
-function celebrateMatch() {
-    if (isCelebrating) return;
-    isCelebrating = true;
-
-    learnedLetters.add(currentTargetLetter);
-    flashcardFront.classList.add('is-celebrating');
-    updateProgressTrail();
-
-    window.speechSynthesis.cancel();
-    const cheer = new SpeechSynthesisUtterance('Awesome! You did it!');
-    cheer.rate = 1.05;
-    cheer.pitch = 1.15;
-    window.speechSynthesis.speak(cheer);
-
-    setTimeout(() => {
-        flashcardFront.classList.remove('is-celebrating');
-        clearPredictionBuffer();
-        isCelebrating = false;
-        advanceToNextLetter();
-    }, CELEBRATION_DELAY_MS);
-}
-
-// 5. Native Execution Loop Process Framework Callback
-async function handleVideoFrameResults(results) {
-    if (isCelebrating) return;
-
-    // No hand in frame — nothing to evaluate this tick
-    if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
-        return;
-    }
-
-    const primaryHandCoordinates = results.multiHandLandmarks[0];
-    const mathematicalFeatureMatrix = normalizeHandLandmarks(primaryHandCoordinates);
-
-    tf.tidy(() => {
-        const structuralMatrixTensor = tf.tensor2d([mathematicalFeatureMatrix], [1, 63]);
-        const layerPredictionsTensor = model.predict(structuralMatrixTensor);
-        const predictionProbabilityArray = layerPredictionsTensor.dataSync();
-
-        const highestConfidenceIndex = predictionProbabilityArray.indexOf(Math.max(...predictionProbabilityArray));
-        const rawInferredChar = GAME_LETTERS[highestConfidenceIndex];
-        const smoothedInferredChar = processBufferSmoothing(rawInferredChar);
-
-        if (smoothedInferredChar === currentTargetLetter) {
-            celebrateMatch();
-        }
-    });
-}
-
-// 6. Complete Initialization Routine Implementation
-async function runtimePipelineBootstrap() {
-    try {
-        await loadTensorflowModel();
-
-        pipelineStatusLog.innerText = 'Asking to borrow your camera…';
-        logSystemStatus('Binding MediaPipe worker parameters...');
-
-        handsPipeline = new Hands({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
-
-        handsPipeline.setOptions({
-            maxNumHands: 1,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.7,
-            minTrackingConfidence: 0.5
-        });
-
-        handsPipeline.onResults(handleVideoFrameResults);
-
-        camera = new Camera(videoElement, {
-            onFrame: async () => {
-                await handsPipeline.send({ image: videoElement });
-            },
-            width: 640,
-            height: 480
-        });
-
-        logSystemStatus('Activating live media system streams...');
-        await camera.start();
-
-        logSystemStatus('Pipeline operations stable and live.');
-
-        // Switch layout visibility structures smoothly
-        placeholderView.classList.add('is-hidden');
-        videoElement.classList.add('is-active');
-        placementGuide.classList.add('is-visible');
-        setCameraStatus('Say cheese! Ready to play 🎉', 'is-live');
-
-        startNewGame();
-    } catch (error) {
-        logSystemStatus(`Pipeline Initialization Fault Break: ${error.message}`);
-        pipelineStatusLog.innerText = "Hmm, we couldn't reach your camera.";
-        setCameraStatus('Camera trouble — check permissions 😕', 'is-error');
-    }
-}
-
-// 7. Event Handler Registration Settings
-toggleGuideBtn.addEventListener('click', () => {
-    const isCurrentlyVisible = placementGuide.classList.contains('is-visible');
-    if (isCurrentlyVisible) {
-        placementGuide.classList.remove('is-visible');
-        toggleGuideBtn.innerText = 'Show Hand Guide';
     } else {
-        placementGuide.classList.add('is-visible');
-        toggleGuideBtn.innerText = 'Hide Hand Guide';
+      predictionBuffer = [];
+      smoothedStatusEl.textContent = 'Ready';
+      setSmoothedSentence("No hand detected");
     }
-});
+  }
 
-skipLetterBtn.addEventListener('click', () => {
-    if (isCelebrating) return;
-    clearPredictionBuffer();
-    advanceToNextLetter();
-    logSystemStatus('Player skipped to a new letter.');
-});
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+      state.mediaStream = stream; video.srcObject = stream;
+      video.classList.add('is-active'); webcamPlaceholder.classList.add('is-hidden');
+      handGuide.classList.add('is-visible'); recIndicator.classList.add('is-live');
+      state.cameraOn = true; btnCameraLabel.textContent = 'Stop Camera'; btnCamera.classList.add('is-active');
+      video.onloadeddata = () => requestAnimationFrame(cameraLoop);
+    } catch (err) { console.error('Camera access failed:', err); }
+  }
 
-// Launch engine processing stack
-window.addEventListener('DOMContentLoaded', runtimePipelineBootstrap);
+  function stopCamera() {
+    if (state.mediaStream) state.mediaStream.getTracks().forEach((track) => track.stop());
+    state.mediaStream = null; video.srcObject = null;
+    video.classList.remove('is-active'); webcamPlaceholder.classList.remove('is-hidden');
+    handGuide.classList.remove('is-visible'); recIndicator.classList.remove('is-live');
+    state.cameraOn = false; btnCameraLabel.textContent = 'Start Camera'; btnCamera.classList.remove('is-active');
+    predictionBuffer = []; statInference.innerHTML = `--<small>ms</small>`; statFps.innerHTML = `--<small>fps</small>`;
+  }
+
+  btnCamera.addEventListener('click', () => { state.cameraOn ? stopCamera() : startCamera(); });
+
+  function speak(text) {
+    if (!state.voiceOn || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  }
+
+  btnVoice.addEventListener('click', () => {
+    state.voiceOn = !state.voiceOn;
+    btnVoice.classList.toggle('is-active', state.voiceOn);
+    btnVoiceLabel.textContent = `Voice Output: ${state.voiceOn ? 'On' : 'Off'}`;
+  });
+
+  function setSmoothedSentence(text) {
+    smoothedEl.innerHTML = '';
+    const span = document.createElement('span'); span.textContent = text;
+    smoothedEl.appendChild(span);
+  }
+
+  window.addEventListener('beforeunload', () => {
+    if (state.mediaStream) state.mediaStream.getTracks().forEach((track) => track.stop());
+  });
+})();
