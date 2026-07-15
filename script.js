@@ -1,6 +1,11 @@
 (() => {
   'use strict';
+
+  // =======================================================================
+  // 🚨 CAMERA MIRRORING & Z-SCORE CONFIG 🚨
+  // MIRROR_CAMERA = false ensures we don't accidentally turn a Right Hand into a Left Hand.
   const MIRROR_CAMERA = false; 
+  // USE_Z_SCORE = true ensures we apply the exact math from your Python script.
   const USE_Z_SCORE = true;
   // =======================================================================
 
@@ -18,12 +23,10 @@
   const statInference = document.getElementById('stat-inference');
   const statFps        = document.getElementById('stat-fps');
 
-  // Flashcard DOM
+  // Flashcard DOM (Image elements completely removed!)
   const flashcardCard     = document.getElementById('flashcard-card');
   const targetCharEl      = document.getElementById('target-char');
   const targetSubtitleEl  = document.getElementById('flashcard-subtitle');
-  const targetImgEl       = document.getElementById('target-sign-img');
-  const targetPlaceholder = document.getElementById('target-img-placeholder');
   const progressEl        = document.getElementById('flashcard-progress');
 
   const state = {
@@ -43,43 +46,38 @@
 
   function loadFlashcard() {
     const letter = CLASSES[targetIndex];
-    targetCharEl.textContent = letter;
-    targetSubtitleEl.textContent = letter;
-    progressEl.textContent = `Letter ${targetIndex + 1} of ${CLASSES.length}`;
-    flashcardCard.classList.remove('success');
+    
+    // Update text elements safely
+    if (targetCharEl) targetCharEl.textContent = letter;
+    if (targetSubtitleEl) targetSubtitleEl.textContent = letter;
+    if (progressEl) progressEl.textContent = `Letter ${targetIndex + 1} of ${CLASSES.length}`;
+    
+    if (flashcardCard) flashcardCard.classList.remove('success');
     isSuccessPause = false;
-
-    targetImgEl.style.display = 'block';
-    targetPlaceholder.style.display = 'none';
-    targetImgEl.src = `assets/signs/${letter}.png`;
-    targetImgEl.onerror = () => {
-        targetImgEl.style.display = 'none';
-        targetPlaceholder.style.display = 'block';
-        targetPlaceholder.innerHTML = `Image missing:<br><code>assets/signs/${letter}.png</code>`;
-    };
   }
+  
+  // Initialize first card
   loadFlashcard();
 
-  let tfModel, hands, normStats; // <--- Ensure normStats is declared here
+  let tfModel, hands, normStats;
 
   async function initializeAI() {
     try {
-      // --- NEW: OBLITERATE CACHE & LOAD NORM STATS ---
-      // This stops GitHub Pages from holding onto the broken model files
+      // Force cache wipe so GitHub Pages doesn't hold onto old broken model weights
       if ('caches' in window) {
           try {
               const cacheNames = await caches.keys();
               for (const name of cacheNames) { await caches.delete(name); }
-          } catch (e) {}
+          } catch (e) { console.warn("Cache clear bypassed"); }
       }
 
       const cacheBuster = `?t=${new Date().getTime()}`;
       
-      // Fetch the normalization stats so the JS matches the Python math
+      // Load Normalization Stats
       const statsResponse = await fetch(`./norm_stats.json${cacheBuster}`);
       normStats = await statsResponse.json();
       
-      // Load the Model (ensure the path is './model.json' since it is in your root folder)
+      // Load Model Architecture and Weights
       tfModel = await tf.loadLayersModel(`./model.json${cacheBuster}`, {
           requestInit: { cache: 'no-store' },
           strict: false
@@ -96,9 +94,12 @@
       console.log("AI Loaded successfully with FRESH weights!");
     } catch (err) {
       console.error("Failed to load AI models:", err);
-      smoothedEl.innerHTML = `<span class="placeholder-text" style="color:var(--danger);">Error loading AI weights. Check console.</span>`;
+      if (smoothedEl) {
+          smoothedEl.innerHTML = `<span class="placeholder-text" style="color:var(--danger);">Error loading AI weights. Check console.</span>`;
+      }
     }
   }
+  
   initializeAI();
 
   async function cameraLoop() {
@@ -108,13 +109,13 @@
       state.isDetecting = true;
       const t0 = performance.now();
       await hands.send({image: video});
-      statInference.innerHTML = `${(performance.now() - t0).toFixed(0)}<small>ms</small>`;
+      if (statInference) statInference.innerHTML = `${(performance.now() - t0).toFixed(0)}<small>ms</small>`;
       state.isDetecting = false;
     }
 
     state.framesSinceLastFps++;
     if (performance.now() - state.lastFpsTime >= 1000) {
-      statFps.innerHTML = `${state.framesSinceLastFps}<small>fps</small>`;
+      if (statFps) statFps.innerHTML = `${state.framesSinceLastFps}<small>fps</small>`;
       state.framesSinceLastFps = 0;
       state.lastFpsTime = performance.now();
     }
@@ -143,7 +144,7 @@
       let features = [];
       relativeCoords.forEach(pt => features.push(pt[0], pt[1], pt[2]));
 
-      // --- Z-SCORE NORMALIZATION (CRITICAL FOR ACCURACY) ---
+      // --- Z-SCORE NORMALIZATION ---
       if (USE_Z_SCORE && normStats) {
           for (let i = 0; i < features.length; i++) {
              let mean = normStats.mean[i] !== undefined ? normStats.mean[i] : 0;
@@ -162,7 +163,6 @@
       tensor.dispose(); prediction.dispose();
 
       let rawLetter = "?";
-      // Lowered threshold to 30% so you can clearly see what the AI is attempting to guess
       if (maxProb > 0.30 && CLASSES && CLASSES.length > classIdx) {
           rawLetter = CLASSES[classIdx];
       }
@@ -180,13 +180,14 @@
 
       if (smoothedLetter !== "?") {
         setSmoothedSentence(`${smoothedLetter} (${(maxProb * 100).toFixed(0)}%)`);
-        smoothedStatusEl.textContent = 'Active';
+        if (smoothedStatusEl) smoothedStatusEl.textContent = 'Active';
 
         const targetLetter = CLASSES[targetIndex];
         if (!isSuccessPause && smoothedLetter === targetLetter) {
             isSuccessPause = true;
-            flashcardCard.classList.add('success');
+            if (flashcardCard) flashcardCard.classList.add('success');
             speak(`Great job! That's ${targetLetter}`);
+            
             setTimeout(() => {
                 targetIndex = (targetIndex + 1) % CLASSES.length;
                 loadFlashcard();
@@ -198,7 +199,7 @@
 
     } else {
       predictionBuffer = [];
-      smoothedStatusEl.textContent = 'Ready';
+      if (smoothedStatusEl) smoothedStatusEl.textContent = 'Ready';
       setSmoothedSentence("No hand detected");
     }
   }
@@ -207,9 +208,13 @@
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
       state.mediaStream = stream; video.srcObject = stream;
-      video.classList.add('is-active'); webcamPlaceholder.classList.add('is-hidden');
-      handGuide.classList.add('is-visible'); recIndicator.classList.add('is-live');
-      state.cameraOn = true; btnCameraLabel.textContent = 'Stop Camera'; btnCamera.classList.add('is-active');
+      if (video) video.classList.add('is-active'); 
+      if (webcamPlaceholder) webcamPlaceholder.classList.add('is-hidden');
+      if (handGuide) handGuide.classList.add('is-visible'); 
+      if (recIndicator) recIndicator.classList.add('is-live');
+      state.cameraOn = true; 
+      if (btnCameraLabel) btnCameraLabel.textContent = 'Stop Camera'; 
+      if (btnCamera) btnCamera.classList.add('is-active');
       video.onloadeddata = () => requestAnimationFrame(cameraLoop);
     } catch (err) { console.error('Camera access failed:', err); }
   }
@@ -217,13 +222,19 @@
   function stopCamera() {
     if (state.mediaStream) state.mediaStream.getTracks().forEach((track) => track.stop());
     state.mediaStream = null; video.srcObject = null;
-    video.classList.remove('is-active'); webcamPlaceholder.classList.remove('is-hidden');
-    handGuide.classList.remove('is-visible'); recIndicator.classList.remove('is-live');
-    state.cameraOn = false; btnCameraLabel.textContent = 'Start Camera'; btnCamera.classList.remove('is-active');
-    predictionBuffer = []; statInference.innerHTML = `--<small>ms</small>`; statFps.innerHTML = `--<small>fps</small>`;
+    if (video) video.classList.remove('is-active'); 
+    if (webcamPlaceholder) webcamPlaceholder.classList.remove('is-hidden');
+    if (handGuide) handGuide.classList.remove('is-visible'); 
+    if (recIndicator) recIndicator.classList.remove('is-live');
+    state.cameraOn = false; 
+    if (btnCameraLabel) btnCameraLabel.textContent = 'Start Camera'; 
+    if (btnCamera) btnCamera.classList.remove('is-active');
+    predictionBuffer = []; 
+    if (statInference) statInference.innerHTML = `--<small>ms</small>`; 
+    if (statFps) statFps.innerHTML = `--<small>fps</small>`;
   }
 
-  btnCamera.addEventListener('click', () => { state.cameraOn ? stopCamera() : startCamera(); });
+  if (btnCamera) btnCamera.addEventListener('click', () => { state.cameraOn ? stopCamera() : startCamera(); });
 
   function speak(text) {
     if (!state.voiceOn || !('speechSynthesis' in window)) return;
@@ -231,13 +242,16 @@
     window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
   }
 
-  btnVoice.addEventListener('click', () => {
-    state.voiceOn = !state.voiceOn;
-    btnVoice.classList.toggle('is-active', state.voiceOn);
-    btnVoiceLabel.textContent = `Voice Output: ${state.voiceOn ? 'On' : 'Off'}`;
-  });
+  if (btnVoice) {
+      btnVoice.addEventListener('click', () => {
+        state.voiceOn = !state.voiceOn;
+        btnVoice.classList.toggle('is-active', state.voiceOn);
+        if (btnVoiceLabel) btnVoiceLabel.textContent = `Voice Output: ${state.voiceOn ? 'On' : 'Off'}`;
+      });
+  }
 
   function setSmoothedSentence(text) {
+    if (!smoothedEl) return;
     smoothedEl.innerHTML = '';
     const span = document.createElement('span'); span.textContent = text;
     smoothedEl.appendChild(span);
