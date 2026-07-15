@@ -3,81 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ASL On-Device Interpreter</title>
+    <title>ASL Alphabet Interpreter</title>
+    <!-- Import Google Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <!-- Load TensorFlow.js and the handpose model -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose"></script>
 </head>
 <body>
-    <div class="app-container">
-        <h1>ASL On-Device Interpreter</h1>
+    <div class="container">
+        <h1>ASL Alphabet Interpreter</h1>
         
-        <!-- Video & Canvas Preview Area -->
-        <div class="video-container">
-            <video id="webcam" autoplay playsinline muted width="640" height="480"></video>
-            <canvas id="output-canvas" width="640" height="480"></canvas>
-        </div>
-
-        <!-- Controls & Prediction Output -->
-        <div class="controls-panel">
-            <div class="prediction-box">
-                <h3>Prediction:</h3>
-                <span id="prediction-text">Waiting for input...</span>
+        <div class="main-content">
+            <!-- Left Panel: Webcam Video & Canvas Layer -->
+            <div class="video-panel">
+                <div class="video-wrapper">
+                    <video id="webcam" autoplay playsinline muted></video>
+                    <canvas id="output"></canvas>
+                    <div id="loading-overlay" class="overlay">
+                        <div class="spinner"></div>
+                        <p id="loading-text">Loading MediaPipe Handpose...</p>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button id="toggle-cam" class="btn disabled" disabled>
+                        <span class="material-icons">videocam_off</span>
+                        Start Camera
+                    </button>
+                </div>
             </div>
-            
-            <div class="button-group">
-                <button id="start-btn" class="btn-primary">Start Camera</button>
-                <button id="hints-btn" class="btn-secondary">Hints</button>
-            </div>
-        </div>
-    </div>
 
-    <!-- Interactive ASL Hints Modal -->
-    <div id="hints-modal" class="hints-modal">
-        <div class="hints-modal-content">
-            <span class="hints-close-btn">&times;</span>
-            <h2>ASL Alphabet Gestures Chart</h2>
-            <p class="hints-subtitle">Quick reference guide for hand shapes (A-Z)</p>
-            
-            <div class="hints-grid">
-                <!-- A-E -->
-                <div class="hint-card"><strong>A</strong><span class="desc">Fist, thumb tight against side of index finger</span></div>
-                <div class="hint-card"><strong>B</strong><span class="desc">Flat hand, fingers straight up, thumb folded across palm</span></div>
-                <div class="hint-card"><strong>C</strong><span class="desc">Cupped hand, fingers and thumb curved like a "C"</span></div>
-                <div class="hint-card"><strong>D</strong><span class="desc">Index pointing straight up; thumb and other fingers forming a circle</span></div>
-                <div class="hint-card"><strong>E</strong><span class="desc">All fingers curled tightly over palm, thumb folded horizontally underneath</span></div>
-                
-                <!-- F-J -->
-                <div class="hint-card"><strong>F</strong><span class="desc">Index and thumb touching tips (OK sign), other 3 fingers spread straight up</span></div>
-                <div class="hint-card"><strong>G</strong><span class="desc">Fist with index and thumb pointing horizontally parallel to each other</span></div>
-                <div class="hint-card"><strong>H</strong><span class="desc">Index and middle fingers extended straight out together horizontally</span></div>
-                <div class="hint-card"><strong>I</strong><span class="desc">Fist with only the pinky finger pointing straight up</span></div>
-                <div class="hint-card"><strong>J</strong><span class="desc">Pinky extended straight up, trace a "J" hook shape downward in the air</span></div>
-                
-                <!-- K-O -->
-                <div class="hint-card"><strong>K</strong><span class="desc">Index and middle up in a "V", thumb pressing vertically against the middle joint</span></div>
-                <div class="hint-card"><strong>L</strong><span class="desc">Index up, thumb out flat creating an "L" shape</span></div>
-                <div class="hint-card"><strong>M</strong><span class="desc">Fist with thumb tucked completely under the index, middle, and ring fingers</span></div>
-                <div class="hint-card"><strong>N</strong><span class="desc">Fist with thumb tucked under the index and middle fingers</span></div>
-                <div class="hint-card"><strong>O</strong><span class="desc">All fingers curved down touching the thumb to make an "O" shape</span></div>
-                
-                <!-- P-T -->
-                <div class="hint-card"><strong>P</strong><span class="desc">Downward pointing "K" sign; index out forward, middle down, thumb on joint</span></div>
-                <div class="hint-card"><strong>Q</strong><span class="desc">Downward pointing "G" sign; index and thumb pointing toward the ground</span></div>
-                <div class="hint-card"><strong>R</strong><span class="desc">Index and middle fingers crossed tightly over each other</span></div>
-                <div class="hint-card"><strong>S</strong><span class="desc">Full fist, thumb tightly folded directly across the middle fingers</span></div>
-                <div class="hint-card"><strong>T</strong><span class="desc">Fist with the thumb tucked directly underneath the index finger</span></div>
-                
-                <!-- U-Z -->
-                <div class="hint-card"><strong>U</strong><span class="desc">Index and middle fingers extended straight up, pressed together</span></div>
-                <div class="hint-card"><strong>V</strong><span class="desc">Index and middle fingers extended straight up, spread apart in a "V"</span></div>
-                <div class="hint-card"><strong>W</strong><span class="desc">Index, middle, and ring fingers spread straight up; thumb pinned to pinky</span></div>
-                <div class="hint-card"><strong>X</strong><span class="desc">Fist with index finger raised and hooked forward like a claw</span></div>
-                <div class="hint-card"><strong>Y</strong><span class="desc">Thumb and pinky extended wide; middle three fingers curled flat to palm</span></div>
-                <div class="hint-card"><strong>Z</strong><span class="desc">Index finger extended up, trace a "Z" pattern rapidly in the air</span></div>
+            <!-- Right Panel: Real-time Output & Visual Guides -->
+            <div class="side-panel">
+                <div class="card prediction-card">
+                    <h2>Detected Letter</h2>
+                    <div id="prediction-output">—</div>
+                    <div class="confidence-container">
+                        <div class="confidence-label">Confidence</div>
+                        <div class="progress-bar">
+                            <div id="confidence-bar" style="width: 0%"></div>
+                        </div>
+                        <span id="confidence-text">0%</span>
+                    </div>
+                </div>
+
+                <div class="card status-card">
+                    <h2>System Status</h2>
+                    <ul class="status-list">
+                        <li id="status-model"><span class="indicator red"></span>Model: Core Unloaded</li>
+                        <li id="status-fps"><span class="indicator gray"></span>FPS: --</li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Core App Logic -->
     <script src="script.js"></script>
 </body>
 </html>
