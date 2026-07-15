@@ -150,7 +150,7 @@ async function initializePipeline() {
         await camera.start();
         
         logMessage('System pipeline successfully operational.');
-        loadingOverlay.style.style.display = 'none'; 
+        loadingOverlay.style.display = 'none'; 
     } catch (error) {
         logMessage(`Initialization Pipeline Failure: ${error.message}`);
         statusText.innerText = 'Hardware or Initialization error.';
