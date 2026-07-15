@@ -62,13 +62,13 @@
     if (targetImgEl && targetPlaceholder) {
         targetImgEl.style.display = 'block';
         targetPlaceholder.style.display = 'none';
-        targetImgEl.src = `assets/signs/${letter}.png`;
+        targetImgEl.src = `assets/signs/${letter}.jpg`;
 
         // If the image doesn't exist, show the placeholder text instead of crashing
         targetImgEl.onerror = () => {
             targetImgEl.style.display = 'none';
             targetPlaceholder.style.display = 'block';
-            targetPlaceholder.innerHTML = `Missing image:<br><code>assets/signs/${letter}.png</code>`;
+            targetPlaceholder.innerHTML = `Missing image:<br><code>assets/signs/${letter}.jpg</code>`;
         };
     }
   }
