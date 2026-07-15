@@ -3,108 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SignSpeak ABC — Learn the ASL Alphabet Game</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
-    <!-- Explicit directory resolution for Vercel production hosting -->
-    <link rel="stylesheet" href="./style.css">
+    <title>ASL On-Device Interpreter</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="app">
-        <!-- Application Header -->
-        <header class="app-header">
-            <div class="brand">
-                <div class="brand-mark" aria-hidden="true">🤟</div>
-                <div class="brand-text">
-                    <h1>SignSpeak ABC</h1>
-                    <p>Learn the ASL alphabet with your camera!</p>
-                </div>
+    <div class="app-container">
+        <h1>ASL On-Device Interpreter</h1>
+        
+        <!-- Video & Canvas Preview Area -->
+        <div class="video-container">
+            <video id="webcam" autoplay playsinline muted width="640" height="480"></video>
+            <canvas id="output-canvas" width="640" height="480"></canvas>
+        </div>
+
+        <!-- Controls & Prediction Output -->
+        <div class="controls-panel">
+            <div class="prediction-box">
+                <h3>Prediction:</h3>
+                <span id="prediction-text">Waiting for input...</span>
             </div>
-
-            <div id="camera-status-pill" class="camera-status-pill">
-                <div id="status-dot" class="status-dot"></div>
-                <span id="camera-status-text">Warming up the camera…</span>
+            
+            <div class="button-group">
+                <button id="start-btn" class="btn-primary">Start Camera</button>
+                <button id="hints-btn" class="btn-secondary">Hints</button>
             </div>
-        </header>
-
-        <!-- Letter progress trail: fills in as the child matches each sign -->
-        <div id="progress-trail" class="progress-trail" aria-label="Letters learned so far"></div>
-
-        <!-- Main Workspace View -->
-        <main class="main-grid">
-            <!-- Left Column: Webcam -->
-            <div class="webcam-column">
-                <div class="panel-label">
-                    <span>👀 Your Camera</span>
-                </div>
-
-                <div class="webcam-frame">
-                    <video id="webcam" autoplay playsinline muted></video>
-
-                    <div id="placeholder-view" class="webcam-placeholder">
-                        <div class="placeholder-icon">📷</div>
-                        <p id="pipeline-status-log">Getting the magic camera ready…</p>
-                        <span>We'll ask to use your camera — just say yes!</span>
-                    </div>
-
-                    <div id="placement-guide" class="hand-guide">
-                        <div class="corner corner-tl"></div>
-                        <div class="corner corner-tr"></div>
-                        <div class="corner corner-bl"></div>
-                        <div class="corner corner-br"></div>
-                        <div class="guide-caption">Put your hand here! ✋</div>
-                    </div>
-                </div>
-
-                <div class="controls">
-                    <button id="toggle-guide-btn" class="btn btn-secondary">Hide Hand Guide</button>
-                    <button id="skip-letter-btn" class="btn btn-ghost">Skip This Letter 🔀</button>
-                </div>
-            </div>
-
-            <!-- Right Column: Flashcard Game -->
-            <div class="output-column">
-                <div class="panel-label">
-                    <span>🃏 Your Flashcard</span>
-                </div>
-
-                <div class="flashcard-box" id="flashcard-box">
-                    <div class="flashcard-stack-behind"></div>
-                    <div class="flashcard-stack-behind-2"></div>
-
-                    <div class="flashcard-front" id="flashcard-front">
-                        <span class="flashcard-eyebrow" id="flashcard-eyebrow">Can you copy this sign?</span>
-
-                        <div class="flashcard-image-wrap">
-                            <img id="flashcard-image" src="./assets/flashcards/A.svg" alt="Sign for the letter A">
-                            <div id="flashcard-letter-fallback" class="flashcard-letter-fallback">A</div>
-                        </div>
-
-                        <div class="flashcard-target-letter" id="flashcard-target-letter">A</div>
-                        <span class="flashcard-hint" id="flashcard-hint">Letter 1 of 24</span>
-
-                        <div class="celebration-banner" id="celebration-banner">
-                            <span class="celebration-emoji" aria-hidden="true">🎉</span>
-                            <span>Awesome! You did it!</span>
-                        </div>
-
-                        <div class="confetti" id="confetti"></div>
-                    </div>
-                </div>
-            </div>
-        </main>
-
-        <footer class="app-footer">
-            Made with 💛 for little hands learning big words.
-        </footer>
+        </div>
     </div>
 
-    <!-- AI Framework Dependency Linkage Stack -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
-    <!-- Explicit directory resolution for Vercel production hosting -->
-    <script src="./script.js"></script>
+    <!-- Interactive ASL Hints Modal -->
+    <div id="hints-modal" class="hints-modal">
+        <div class="hints-modal-content">
+            <span class="hints-close-btn">&times;</span>
+            <h2>ASL Alphabet Gestures Chart</h2>
+            <p class="hints-subtitle">Quick reference guide for hand shapes (A-Z)</p>
+            
+            <div class="hints-grid">
+                <!-- A-E -->
+                <div class="hint-card"><strong>A</strong><span class="desc">Fist, thumb tight against side of index finger</span></div>
+                <div class="hint-card"><strong>B</strong><span class="desc">Flat hand, fingers straight up, thumb folded across palm</span></div>
+                <div class="hint-card"><strong>C</strong><span class="desc">Cupped hand, fingers and thumb curved like a "C"</span></div>
+                <div class="hint-card"><strong>D</strong><span class="desc">Index pointing straight up; thumb and other fingers forming a circle</span></div>
+                <div class="hint-card"><strong>E</strong><span class="desc">All fingers curled tightly over palm, thumb folded horizontally underneath</span></div>
+                
+                <!-- F-J -->
+                <div class="hint-card"><strong>F</strong><span class="desc">Index and thumb touching tips (OK sign), other 3 fingers spread straight up</span></div>
+                <div class="hint-card"><strong>G</strong><span class="desc">Fist with index and thumb pointing horizontally parallel to each other</span></div>
+                <div class="hint-card"><strong>H</strong><span class="desc">Index and middle fingers extended straight out together horizontally</span></div>
+                <div class="hint-card"><strong>I</strong><span class="desc">Fist with only the pinky finger pointing straight up</span></div>
+                <div class="hint-card"><strong>J</strong><span class="desc">Pinky extended straight up, trace a "J" hook shape downward in the air</span></div>
+                
+                <!-- K-O -->
+                <div class="hint-card"><strong>K</strong><span class="desc">Index and middle up in a "V", thumb pressing vertically against the middle joint</span></div>
+                <div class="hint-card"><strong>L</strong><span class="desc">Index up, thumb out flat creating an "L" shape</span></div>
+                <div class="hint-card"><strong>M</strong><span class="desc">Fist with thumb tucked completely under the index, middle, and ring fingers</span></div>
+                <div class="hint-card"><strong>N</strong><span class="desc">Fist with thumb tucked under the index and middle fingers</span></div>
+                <div class="hint-card"><strong>O</strong><span class="desc">All fingers curved down touching the thumb to make an "O" shape</span></div>
+                
+                <!-- P-T -->
+                <div class="hint-card"><strong>P</strong><span class="desc">Downward pointing "K" sign; index out forward, middle down, thumb on joint</span></div>
+                <div class="hint-card"><strong>Q</strong><span class="desc">Downward pointing "G" sign; index and thumb pointing toward the ground</span></div>
+                <div class="hint-card"><strong>R</strong><span class="desc">Index and middle fingers crossed tightly over each other</span></div>
+                <div class="hint-card"><strong>S</strong><span class="desc">Full fist, thumb tightly folded directly across the middle fingers</span></div>
+                <div class="hint-card"><strong>T</strong><span class="desc">Fist with the thumb tucked directly underneath the index finger</span></div>
+                
+                <!-- U-Z -->
+                <div class="hint-card"><strong>U</strong><span class="desc">Index and middle fingers extended straight up, pressed together</span></div>
+                <div class="hint-card"><strong>V</strong><span class="desc">Index and middle fingers extended straight up, spread apart in a "V"</span></div>
+                <div class="hint-card"><strong>W</strong><span class="desc">Index, middle, and ring fingers spread straight up; thumb pinned to pinky</span></div>
+                <div class="hint-card"><strong>X</strong><span class="desc">Fist with index finger raised and hooked forward like a claw</span></div>
+                <div class="hint-card"><strong>Y</strong><span class="desc">Thumb and pinky extended wide; middle three fingers curled flat to palm</span></div>
+                <div class="hint-card"><strong>Z</strong><span class="desc">Index finger extended up, trace a "Z" pattern rapidly in the air</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core App Logic -->
+    <script src="script.js"></script>
 </body>
 </html>
