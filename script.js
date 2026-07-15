@@ -1,224 +1,329 @@
+// Target Document Object Model Binding References
+const videoElement = document.getElementById('webcam');
+const placeholderView = document.getElementById('placeholder-view');
+const pipelineStatusLog = document.getElementById('pipeline-status-log');
+const placementGuide = document.getElementById('placement-guide');
+const cameraStatusPill = document.getElementById('camera-status-pill');
+const statusDot = document.getElementById('status-dot');
+const cameraStatusText = document.getElementById('camera-status-text');
+const progressTrail = document.getElementById('progress-trail');
+
+const flashcardFront = document.getElementById('flashcard-front');
+const flashcardEyebrow = document.getElementById('flashcard-eyebrow');
+const flashcardImage = document.getElementById('flashcard-image');
+const flashcardLetterFallback = document.getElementById('flashcard-letter-fallback');
+const flashcardTargetLetter = document.getElementById('flashcard-target-letter');
+const flashcardHint = document.getElementById('flashcard-hint');
+const confettiContainer = document.getElementById('confetti');
+
+// Control Buttons DOM Access Bindings
+const toggleGuideBtn = document.getElementById('toggle-guide-btn');
+const skipLetterBtn = document.getElementById('skip-letter-btn');
+
+// System Operational Pipeline Constants
+const MODEL_PATH = './model.json';
+const BUFFER_SIZE = 5;
+const GAME_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y'];
+const CELEBRATION_DELAY_MS = 1500;
+const CONFETTI_COLORS = ['#FFC33D', '#FF7A66', '#4FB6E8', '#45B478', '#F5A300'];
+
+// Application Pipeline State Registers
 let model = null;
-let webcamElement = document.getElementById('webcam');
-let canvasElement = document.getElementById('output');
-let ctx = canvasElement.getContext('2d');
-let toggleCamBtn = document.getElementById('toggle-cam');
-let loadingOverlay = document.getElementById('loading-overlay');
-let loadingText = document.getElementById('loading-text');
+let handsPipeline = null;
+let camera = null;
+let predictionBuffer = [];
 
-let isWebcamActive = false;
-let localStream = null;
-let customClassifier = null;
+// Game State Registers
+let letterQueue = [];
+let currentTargetLetter = '';
+let letterIndex = 0;
+let learnedLetters = new Set();
+let isCelebrating = false;
 
-let lastFrameTime = performance.now();
-let frameCount = 0;
-let currentFps = 0;
+// Simple dev-console logger (no on-screen readout for players)
+function logSystemStatus(message) {
+    const timestamp = new Date().toLocaleTimeString();
+    console.log(`[${timestamp}] ${message}`);
+}
 
-// Internal Alphabet Lookup Mapping Array
-const ALPHABET = ['A','B','C','D','E','F','G','H','I','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y'];
+// ============================= Game setup helpers ============================= //
 
-// Initialize App: Load Models sequentially
-async function setupApp() {
+// Fisher-Yates shuffle so letters appear in a fresh random order each round,
+// with a guard so the same letter never plays twice in a row.
+function buildShuffledQueue(avoidFirst) {
+    const shuffled = [...GAME_LETTERS];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    if (avoidFirst && shuffled[0] === avoidFirst && shuffled.length > 1) {
+        [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
+    }
+    return shuffled;
+}
+
+function buildProgressTrail() {
+    progressTrail.innerHTML = '';
+    GAME_LETTERS.forEach((letter) => {
+        const dot = document.createElement('div');
+        dot.className = 'progress-dot';
+        dot.id = `progress-dot-${letter}`;
+        dot.innerText = letter;
+        progressTrail.appendChild(dot);
+    });
+}
+
+function updateProgressTrail() {
+    GAME_LETTERS.forEach((letter) => {
+        const dot = document.getElementById(`progress-dot-${letter}`);
+        if (!dot) return;
+        dot.classList.toggle('is-learned', learnedLetters.has(letter));
+        dot.classList.toggle('is-current', letter === currentTargetLetter && !learnedLetters.has(letter));
+    });
+}
+
+function buildConfettiPieces() {
+    confettiContainer.innerHTML = '';
+    for (let i = 0; i < 18; i++) {
+        const piece = document.createElement('span');
+        piece.className = 'confetti-piece';
+        piece.style.left = `${Math.random() * 100}%`;
+        piece.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+        piece.style.animationDelay = `${Math.random() * 0.25}s`;
+        confettiContainer.appendChild(piece);
+    }
+}
+
+// Renders the active flashcard, with a graceful fallback to a big letter
+// if the sign illustration for that letter isn't available yet.
+function renderFlashcard(letter) {
+    currentTargetLetter = letter;
+    flashcardTargetLetter.innerText = letter;
+    flashcardHint.innerText = `Letter ${letterIndex + 1} of ${GAME_LETTERS.length}`;
+
+    flashcardImage.classList.remove('is-hidden');
+    flashcardLetterFallback.classList.remove('is-visible');
+    flashcardLetterFallback.innerText = letter;
+    flashcardImage.src = `./assets/flashcards/${letter}.svg`;
+    flashcardImage.alt = `Sign for the letter ${letter}`;
+
+    updateProgressTrail();
+}
+
+flashcardImage.addEventListener('error', () => {
+    flashcardImage.classList.add('is-hidden');
+    flashcardLetterFallback.classList.add('is-visible');
+});
+
+function advanceToNextLetter() {
+    letterIndex++;
+    if (letterIndex >= letterQueue.length) {
+        letterQueue = buildShuffledQueue(currentTargetLetter);
+        letterIndex = 0;
+    }
+    renderFlashcard(letterQueue[letterIndex]);
+}
+
+function startNewGame() {
+    letterQueue = buildShuffledQueue();
+    letterIndex = 0;
+    learnedLetters = new Set();
+    buildProgressTrail();
+    buildConfettiPieces();
+    renderFlashcard(letterQueue[0]);
+}
+
+// ============================= Camera status helpers ============================= //
+
+function setCameraStatus(text, state) {
+    cameraStatusText.innerText = text;
+    cameraStatusPill.classList.remove('is-live', 'is-error');
+    if (state) cameraStatusPill.classList.add(state);
+}
+
+// ============================= Model + hand tracking pipeline ============================= //
+
+// 1. Model Initialization
+async function loadTensorflowModel() {
     try {
-        // Step 1: Initialize MediaPipe Handpose base tracker
-        model = await handpose.load();
-        updateStatusIndicator('status-model', 'green', 'Handpose Loaded');
-        
-        // Step 2: Extract custom weights layer array on top of basic Handpose landmarks
-        loadingText.textContent = "Loading ASL Weights Model...";
-        const response = await fetch('model.json');
-        customClassifier = await response.json();
-        
-        updateStatusIndicator('status-model', 'green', 'System Online');
-        
-        // Release button access states
-        loadingOverlay.style.opacity = '0';
-        setTimeout(() => loadingOverlay.style.display = 'none', 400);
-        
-        toggleCamBtn.removeAttribute('disabled');
-        toggleCamBtn.classList.remove('disabled');
-    } catch (err) {
-        console.error("Critical boot structure error: ", err);
-        loadingText.innerHTML = `<span style="color: #f87171">Initialization Failed.<br>Verify JSON weights source pathways.</span>`;
-        document.querySelector('.spinner').style.display = 'none';
+        logSystemStatus('Loading local model arrays...');
+        pipelineStatusLog.innerText = 'Getting the magic camera ready…';
+
+        // Non-strict layout compilation resolves Keras 3 schema variations smoothly
+        model = await tf.loadLayersModel(MODEL_PATH, { strict: false });
+
+        logSystemStatus('Model loaded cleanly.');
+    } catch (error) {
+        logSystemStatus(`Model crash state flag: ${error.message}`);
+        pipelineStatusLog.innerText = 'Oops! We had trouble loading the game.';
+        setCameraStatus('Having trouble getting ready 😕', 'is-error');
+        throw error;
     }
 }
 
-// Camera I/O State toggles
-async function toggleWebcam() {
-    if (isWebcamActive) {
-        // Terminate ongoing streaming threads cleanly
-        if (localStream) {
-            localStream.getTracks().forEach(track => track.stop());
-        }
-        webcamElement.srcObject = null;
-        isWebcamActive = false;
-        toggleCamBtn.innerHTML = `<span class="material-icons">videocam_off</span> Start Camera`;
-        ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-        updateStatusIndicator('status-fps', 'gray', 'FPS: --');
-        resetPredictionDisplay();
-    } else {
-        try {
-            localStream = await navigator.mediaDevices.getUserMedia({
-                video: { width: 640, height: 480, facingMode: "user" },
-                audio: false
-            });
-            webcamElement.srcObject = localStream;
-            isWebcamActive = true;
-            toggleCamBtn.innerHTML = `<span class="material-icons">videocam</span> Stop Camera`;
-            
-            // Sync Canvas mapping ratios on stream meta detection triggers
-            webcamElement.onloadedmetadata = () => {
-                canvasElement.width = webcamElement.videoWidth;
-                canvasElement.height = webcamElement.videoHeight;
-                requestAnimationFrame(renderAnalysisLoop);
-            };
-        } catch (error) {
-            console.error("Camera access blocked: ", error);
-            alert("Could not access camera. Please inspect system permission prompts.");
+// 2. Transformative Spatial Normalization Mathematics (Position & Scale Invariance)
+function normalizeHandLandmarks(landmarks) {
+    const wristAnchor = landmarks[0];
+    let zeroAnchoredFeatures = [];
+
+    // Zero-anchor relative translation offset calculations step
+    for (let i = 0; i < landmarks.length; i++) {
+        zeroAnchoredFeatures.push(landmarks[i].x - wristAnchor.x);
+        zeroAnchoredFeatures.push(landmarks[i].y - wristAnchor.y);
+        zeroAnchoredFeatures.push(landmarks[i].z - wristAnchor.z);
+    }
+
+    // Scale parameter extraction factor adjustments block
+    const absoluteMaxMagnitude = Math.max(...zeroAnchoredFeatures.map(Math.abs));
+    if (absoluteMaxMagnitude > 0) {
+        zeroAnchoredFeatures = zeroAnchoredFeatures.map(value => value / absoluteMaxMagnitude);
+    }
+
+    return zeroAnchoredFeatures; // Flattens precisely to a 63-dimensional matrix input profile
+}
+
+// 3. Frame Smoothing Window Context Filter Function
+function processBufferSmoothing(newPredictionRaw) {
+    predictionBuffer.push(newPredictionRaw);
+    if (predictionBuffer.length > BUFFER_SIZE) {
+        predictionBuffer.shift();
+    }
+
+    const frequencyHistogram = {};
+    let dominantStabilizedClass = newPredictionRaw;
+    let peakOccurrenceCount = 0;
+
+    for (const token of predictionBuffer) {
+        frequencyHistogram[token] = (frequencyHistogram[token] || 0) + 1;
+        if (frequencyHistogram[token] > peakOccurrenceCount) {
+            peakOccurrenceCount = frequencyHistogram[token];
+            dominantStabilizedClass = token;
         }
     }
+
+    return dominantStabilizedClass;
 }
 
-// Performance Frame Metric calculation
-function trackPerformanceMetrics() {
-    frameCount++;
-    const now = performance.now();
-    if (now >= lastFrameTime + 1000) {
-        currentFps = Math.round((frameCount * 1000) / (now - lastFrameTime));
-        updateStatusIndicator('status-fps', 'green', `FPS: ${currentFps}`);
-        frameCount = 0;
-        lastFrameTime = now;
+function clearPredictionBuffer() {
+    predictionBuffer = [];
+}
+
+// 4. Celebration + voice feedback engine
+function celebrateMatch() {
+    if (isCelebrating) return;
+    isCelebrating = true;
+
+    learnedLetters.add(currentTargetLetter);
+    flashcardFront.classList.add('is-celebrating');
+    updateProgressTrail();
+
+    window.speechSynthesis.cancel();
+    const cheer = new SpeechSynthesisUtterance('Awesome! You did it!');
+    cheer.rate = 1.05;
+    cheer.pitch = 1.15;
+    window.speechSynthesis.speak(cheer);
+
+    setTimeout(() => {
+        flashcardFront.classList.remove('is-celebrating');
+        clearPredictionBuffer();
+        isCelebrating = false;
+        advanceToNextLetter();
+    }, CELEBRATION_DELAY_MS);
+}
+
+// 5. Native Execution Loop Process Framework Callback
+async function handleVideoFrameResults(results) {
+    if (isCelebrating) return;
+
+    // No hand in frame — nothing to evaluate this tick
+    if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+        return;
     }
+
+    const primaryHandCoordinates = results.multiHandLandmarks[0];
+    const mathematicalFeatureMatrix = normalizeHandLandmarks(primaryHandCoordinates);
+
+    tf.tidy(() => {
+        const structuralMatrixTensor = tf.tensor2d([mathematicalFeatureMatrix], [1, 63]);
+        const layerPredictionsTensor = model.predict(structuralMatrixTensor);
+        const predictionProbabilityArray = layerPredictionsTensor.dataSync();
+
+        const highestConfidenceIndex = predictionProbabilityArray.indexOf(Math.max(...predictionProbabilityArray));
+        const rawInferredChar = GAME_LETTERS[highestConfidenceIndex];
+        const smoothedInferredChar = processBufferSmoothing(rawInferredChar);
+
+        if (smoothedInferredChar === currentTargetLetter) {
+            celebrateMatch();
+        }
+    });
 }
 
-// Real-time loop structure evaluating tracking configurations
-async function renderAnalysisLoop() {
-    if (!isWebcamActive) return;
-
-    ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    trackPerformanceMetrics();
-
+// 6. Complete Initialization Routine Implementation
+async function runtimePipelineBootstrap() {
     try {
-        const predictions = await model.estimateHands(webcamElement);
-        
-        if (predictions.length > 0) {
-            const hand = predictions[0];
-            drawHandSkeleton(hand.landmarks);
-            
-            // Extract feature input vector from coordinates
-            const normalizedFeatures = generateFeatureVector(hand.landmarks);
-            
-            // Compute matching outputs against loaded JSON matrix layers
-            evaluateGestureVector(normalizedFeatures);
-        } else {
-            resetPredictionDisplay();
-        }
-    } catch (e) {
-        console.warn("Frame analysis processing drop error occurred: ", e);
+        await loadTensorflowModel();
+
+        pipelineStatusLog.innerText = 'Asking to borrow your camera…';
+        logSystemStatus('Binding MediaPipe worker parameters...');
+
+        handsPipeline = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        handsPipeline.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.5
+        });
+
+        handsPipeline.onResults(handleVideoFrameResults);
+
+        camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await handsPipeline.send({ image: videoElement });
+            },
+            width: 640,
+            height: 480
+        });
+
+        logSystemStatus('Activating live media system streams...');
+        await camera.start();
+
+        logSystemStatus('Pipeline operations stable and live.');
+
+        // Switch layout visibility structures smoothly
+        placeholderView.classList.add('is-hidden');
+        videoElement.classList.add('is-active');
+        placementGuide.classList.add('is-visible');
+        setCameraStatus('Say cheese! Ready to play 🎉', 'is-live');
+
+        startNewGame();
+    } catch (error) {
+        logSystemStatus(`Pipeline Initialization Fault Break: ${error.message}`);
+        pipelineStatusLog.innerText = "Hmm, we couldn't reach your camera.";
+        setCameraStatus('Camera trouble — check permissions 😕', 'is-error');
     }
-
-    requestAnimationFrame(renderAnalysisLoop);
 }
 
-// Draw skeleton joints and lines on canvas layer
-function drawHandSkeleton(landmarks) {
-    ctx.fillStyle = '#38bdf8';
-    ctx.strokeStyle = 'rgba(248, 250, 252, 0.6)';
-    ctx.lineWidth = 3;
-
-    // Define connection map pathways
-    const fingers = {
-        thumb: [0, 1, 2, 3, 4],
-        index: [0, 5, 6, 7, 8],
-        middle: [0, 9, 10, 11, 12],
-        ring: [0, 13, 14, 15, 16],
-        pinky: [0, 17, 18, 19, 20]
-    };
-
-    // Render connection segments
-    Object.values(fingers).forEach(path => {
-        ctx.beginPath();
-        ctx.moveTo(landmarks[path[0]][0], landmarks[path[0]][1]);
-        for (let i = 1; i < path.length; i++) {
-            ctx.lineTo(landmarks[path[i]][0], landmarks[path[i]][1]);
-        }
-        ctx.stroke();
-    });
-
-    // Draw individual joints
-    landmarks.forEach(point => {
-        ctx.beginPath();
-        ctx.arc(point[0], point[1], 5, 0, 2 * Math.PI);
-        ctx.fill();
-    });
-}
-
-// Convert absolute pixel positions into scaled relative feature distances
-function generateFeatureVector(landmarks) {
-    const wrist = landmarks[0];
-    let distances = [];
-    
-    // Compute distance offsets relative to wrist coordinate bounds
-    for (let i = 1; i < landmarks.length; i++) {
-        const dx = landmarks[i][0] - wrist[0];
-        const dy = landmarks[i][1] - wrist[1];
-        const dz = landmarks[i][2] - wrist[2];
-        distances.push(Math.sqrt(dx*dx + dy*dy + dz*dz));
-    }
-    
-    // Normalize absolute variations by dividing max bounding space
-    const maxDist = Math.max(...distances);
-    return distances.map(d => d / (maxDist || 1));
-}
-
-// Custom internal evaluation utilizing Euclidean distance configurations
-function evaluateGestureVector(features) {
-    if (!customClassifier || !customClassifier.gestures) return;
-
-    let bestMatch = "—";
-    let highestScore = 0;
-
-    customClassifier.gestures.forEach(gesture => {
-        let distanceSum = 0;
-        // Compare target vector indexes matching base parameters
-        for(let i = 0; i < features.length; i++) {
-            let diff = features[i] - gesture.weights[i];
-            distanceSum += diff * diff;
-        }
-        
-        let calculatedScore = 1 / (1 + Math.sqrt(distanceSum)); // Convert error inverse scale score
-        if (calculatedScore > highestScore) {
-            highestScore = calculatedScore;
-            bestMatch = gesture.label;
-        }
-    });
-
-    // Post processing UI translation updates
-    if (highestScore > 0.65) {
-        document.getElementById('prediction-output').textContent = bestMatch;
-        let percentString = Math.round(highestScore * 100) + '%';
-        document.getElementById('confidence-text').textContent = percentString;
-        document.getElementById('confidence-bar').style.width = percentString;
+// 7. Event Handler Registration Settings
+toggleGuideBtn.addEventListener('click', () => {
+    const isCurrentlyVisible = placementGuide.classList.contains('is-visible');
+    if (isCurrentlyVisible) {
+        placementGuide.classList.remove('is-visible');
+        toggleGuideBtn.innerText = 'Show Hand Guide';
     } else {
-        resetPredictionDisplay();
+        placementGuide.classList.add('is-visible');
+        toggleGuideBtn.innerText = 'Hide Hand Guide';
     }
-}
+});
 
-// Visual layout helper routines
-function updateStatusIndicator(elementId, colorClass, message) {
-    const targetLi = document.getElementById(elementId);
-    if(targetLi) {
-        targetLi.innerHTML = `<span class="indicator ${colorClass}"></span>${message}`;
-    }
-}
+skipLetterBtn.addEventListener('click', () => {
+    if (isCelebrating) return;
+    clearPredictionBuffer();
+    advanceToNextLetter();
+    logSystemStatus('Player skipped to a new letter.');
+});
 
-function resetPredictionDisplay() {
-    document.getElementById('prediction-output').textContent = "—";
-    document.getElementById('confidence-text').textContent = "0%";
-    document.getElementById('confidence-bar').style.width = "0%";
-}
-
-// Event hooks setup
-toggleCamBtn.addEventListener('click', toggleWebcam);
-window.addEventListener('load', setupApp);
+// Launch engine processing stack
+window.addEventListener('DOMContentLoaded', runtimePipelineBootstrap);
