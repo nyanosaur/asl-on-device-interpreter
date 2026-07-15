@@ -1,110 +1,196 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SignSpeak ABC — Learn the ASL Alphabet Game</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
-    <!-- Explicit directory resolution for Vercel production hosting -->
-    <link rel="stylesheet" href="./style.css">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SignSpeak — ASL Teaching App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+<style>
+    /* Flashcard Specific Styling */
+    .flashcard-box {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1.5rem;
+        padding: 2.5rem 1rem;
+        background: #ffffff;
+        border-radius: 20px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s;
+    }
+    .flashcard-box.success {
+        background-color: #D1FAE5; /* Soft success green */
+        transform: scale(1.03);
+    }
+    .flashcard-title {
+        background: #E0F2FE;
+        color: #0369A1;
+        padding: 0.5rem 1.25rem;
+        border-radius: 9999px;
+        font-weight: 700;
+        font-size: 0.95rem;
+    }
+    .flashcard-content {
+        display: flex;
+        gap: 1.5rem;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        margin: 20px 0;
+    }
+    .letter-box {
+        background: #E0F2FE;
+        color: #38BDF8;
+        font-size: 5rem;
+        font-weight: 800;
+        width: 160px;
+        height: 160px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 24px;
+    }
+    .flashcard-progress {
+        color: #4B5563;
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-top: 0.5rem;
+    }
+    .flashcard-letter-subtitle {
+        color: #111827;
+        font-size: 1.8rem;
+        font-weight: 800;
+        margin-bottom: -0.5rem;
+    }
+</style>
 </head>
 <body>
-    <div class="app">
-        <!-- Application Header -->
-        <header class="app-header">
-            <div class="brand">
-                <div class="brand-mark" aria-hidden="true">🤟</div>
-                <div class="brand-text">
-                    <h1>SignSpeak ABC</h1>
-                    <p>Learn the ASL alphabet with your camera!</p>
-                </div>
-            </div>
 
-            <div id="camera-status-pill" class="camera-status-pill">
-                <div id="status-dot" class="status-dot"></div>
-                <span id="camera-status-text">Warming up the camera…</span>
-            </div>
-        </header>
-
-        <!-- Letter progress trail: fills in as the child matches each sign -->
-        <div id="progress-trail" class="progress-trail" aria-label="Letters learned so far"></div>
-
-        <!-- Main Workspace View -->
-        <main class="main-grid">
-            <!-- Left Column: Webcam -->
-            <div class="webcam-column">
-                <div class="panel-label">
-                    <span>👀 Your Camera</span>
-                </div>
-
-                <div class="webcam-frame">
-                    <video id="webcam" autoplay playsinline muted></video>
-
-                    <div id="placeholder-view" class="webcam-placeholder">
-                        <div class="placeholder-icon">📷</div>
-                        <p id="pipeline-status-log">Getting the magic camera ready…</p>
-                        <span>We'll ask to use your camera — just say yes!</span>
-                    </div>
-
-                    <div id="placement-guide" class="hand-guide">
-                        <div class="corner corner-tl"></div>
-                        <div class="corner corner-tr"></div>
-                        <div class="corner corner-bl"></div>
-                        <div class="corner corner-br"></div>
-                        <div class="guide-caption">Put your hand here! ✋</div>
-                    </div>
-                </div>
-
-                <div class="controls">
-                    <button id="toggle-guide-btn" class="btn btn-secondary">Hide Hand Guide</button>
-                    <button id="skip-letter-btn" class="btn btn-ghost">Skip This Letter 🔀</button>
-                </div>
-            </div>
-
-            <!-- Right Column: Flashcard Game -->
-            <div class="output-column">
-                <div class="panel-label">
-                    <span>🃏 Your Flashcard</span>
-                </div>
-
-                <div class="flashcard-box" id="flashcard-box">
-                    <div class="flashcard-stack-behind"></div>
-                    <div class="flashcard-stack-behind-2"></div>
-
-                    <div class="flashcard-front" id="flashcard-front">
-                        <span class="flashcard-eyebrow" id="flashcard-eyebrow">Can you copy this sign?</span>
-
-                        <div class="flashcard-image-wrap">
-                            <img id="flashcard-image" src="./assets/flashcards/A.svg" alt="Sign for the letter A">
-                            <div id="flashcard-letter-fallback" class="flashcard-letter-fallback">A</div>
-                        </div>
-
-                        <div class="flashcard-target-letter" id="flashcard-target-letter">A</div>
-                        <span class="flashcard-hint" id="flashcard-hint">Letter 1 of 24</span>
-
-                        <div class="celebration-banner" id="celebration-banner">
-                            <span class="celebration-emoji" aria-hidden="true">🎉</span>
-                            <span>Awesome! You did it!</span>
-                        </div>
-
-                        <div class="confetti" id="confetti"></div>
-                    </div>
-                </div>
-            </div>
-        </main>
-
-        <footer class="app-footer">
-            Made with 💛 for little hands learning big words.
-        </footer>
+<div class="app">
+    <!-- ========== HEADER ========== -->
+    <header class="app-header">
+    <div class="header-left">
+        <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M7 11V7a2 2 0 0 1 4 0v4M11 11V5a2 2 0 0 1 4 0v6M15 11V7a2 2 0 0 1 4 0v6.5c0 3.59-2.91 6.5-6.5 6.5h-1c-2.14 0-4.14-.9-5.5-2.47l-3.1-3.53a1.5 1.5 0 0 1 2.15-2.08L7 13" stroke="#10B981" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </span>
+        <div class="brand-text">
+            <h1>SignSpeak</h1>
+            <p>Interactive ASL Learning</p>
+        </div>
+        </div>
+        <div class="local-pill" role="status" aria-live="polite">
+        <span class="pill-dot" aria-hidden="true"></span>
+        ON-DEVICE AI
+        </div>
     </div>
 
-    <!-- AI Framework Dependency Linkage Stack -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
-    <!-- Explicit directory resolution for Vercel production hosting -->
-    <script src="./script.js"></script>
+    <div class="header-right">
+        <div class="stat-panel" aria-label="Live performance stats">
+        <div class="stat">
+            <span class="stat-label">Inference</span>
+            <span class="stat-value" id="stat-inference">--<small>ms</small></span>
+        </div>
+        <div class="stat-divider" aria-hidden="true"></div>
+        <div class="stat">
+            <span class="stat-label">Processing</span>
+            <span class="stat-value" id="stat-fps">--<small>fps</small></span>
+        </div>
+        </div>
+    </div>
+    </header>
+
+    <!-- ========== MAIN SPLIT ========== -->
+    <main class="main-grid">
+
+    <!-- LEFT: Webcam column -->
+    <section class="webcam-column" aria-label="Camera feed">
+        <div class="panel-label">
+        <span>Camera Feed</span>
+        <span class="rec-indicator" id="rec-indicator"><span class="rec-dot"></span>LIVE</span>
+        </div>
+
+        <div class="webcam-frame">
+        <video id="webcam" autoplay playsinline muted></video>
+
+        <div class="webcam-placeholder" id="webcam-placeholder">
+            <svg width="52" height="52" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15 10l4.55-2.68A1 1 0 0 1 21 8.14v7.72a1 1 0 0 1-1.45.82L15 14M4 6h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" stroke="#9CA3AF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <p>Camera is off</p>
+            <span>Press "Start Camera" to begin signing</span>
+        </div>
+
+        <div class="hand-guide" id="hand-guide" aria-hidden="true">
+            <span class="corner corner-tl"></span>
+            <span class="corner corner-tr"></span>
+            <span class="corner corner-bl"></span>
+            <span class="corner corner-br"></span>
+            <span class="guide-caption">Position hands here</span>
+        </div>
+        </div>
+
+        <div class="controls">
+        <button class="btn btn-primary" id="btn-camera" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15 10l4.55-2.68A1 1 0 0 1 21 8.14v7.72a1 1 0 0 1-1.45.82L15 14M4 6h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span id="btn-camera-label">Start Camera</span>
+        </button>
+
+        <button class="btn btn-secondary" id="btn-voice" type="button" aria-pressed="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M11 5 6 9H2v6h4l5 4V5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            <path id="voice-wave" d="M15.5 8.5a5 5 0 0 1 0 7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+            <span id="btn-voice-label">Voice Output: Off</span>
+        </button>
+        </div>
+    </section>
+
+    <!-- RIGHT: Output column (Now a Flashcard) -->
+    <section class="output-column" aria-label="Interpreted text">
+        
+        <!-- NEW FLASHCARD UI -->
+        <div class="output-box flashcard-box" id="flashcard-card">
+            <div class="flashcard-title">Can you sign this letter?</div>
+            
+            <div class="flashcard-content">
+                <!-- The Big Blue Letter -->
+                <div class="letter-box" id="target-char">
+                    A
+                </div>
+            </div>
+
+            <div class="flashcard-letter-subtitle" id="flashcard-subtitle">A</div>
+            <div class="flashcard-progress" id="flashcard-progress">Letter 1 of 24</div>
+        </div>
+
+        <!-- Keep the AI output so they can see what they are currently doing -->
+        <div class="output-box smoothed-box">
+            <div class="panel-label">
+                <span>What the AI sees you doing:</span>
+                <span class="badge-accent" id="smoothed-status">Ready</span>
+            </div>
+            <div class="smoothed-content" id="smoothed-sentence" aria-live="polite">
+                <span class="placeholder-text">Your interpreted sign will appear here.</span>
+            </div>
+        </div>
+
+    </section>
+    </main>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
