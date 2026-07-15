@@ -1,263 +1,173 @@
-/* ==========================================================================
-   SignSpeak — script.js
-   Vanilla JS controller for camera, voice output, and the ASL detection
-   simulation hook. Replace processVideoFrame()'s internals with a real
-   on-device model (e.g. MediaPipe Hands + a gesture classifier) later —
-   the UI wiring below will keep working unchanged.
-   ========================================================================== */
+// Global DOM References
+const videoElement = document.getElementById('webcam');
+const letterDisplay = document.getElementById('detected-letter');
+const statusText = document.getElementById('status-text');
+const loadingOverlay = document.getElementById('loading-overlay');
+const consoleLog = document.getElementById('console-log');
 
-(() => {
-  'use strict';
+// Configuration Constants
+const MODEL_PATH = 'tfjs_model/model.json';
+const BUFFER_SIZE = 5;
+const ASL_ALPHABET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y'];
 
-  /* ---------------------------- DOM references ---------------------------- */
+// Global State Variables
+let model = null;
+let handsPipeline = null;
+let camera = null;
+let predictionBuffer = [];
+let lastSpokenLetter = '';
 
-  const video            = document.getElementById('webcam');
-  const webcamPlaceholder = document.getElementById('webcam-placeholder');
-  const handGuide         = document.getElementById('hand-guide');
-  const recIndicator      = document.getElementById('rec-indicator');
+// Logger utility helper
+function logMessage(message) {
+    const timestamp = new Date().toLocaleTimeString();
+    consoleLog.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+    consoleLog.scrollTop = consoleLog.scrollHeight;
+    console.log(message);
+}
 
-  const btnCamera      = document.getElementById('btn-camera');
-  const btnCameraLabel = document.getElementById('btn-camera-label');
-  const btnVoice       = document.getElementById('btn-voice');
-  const btnVoiceLabel  = document.getElementById('btn-voice-label');
-  const btnClear       = document.getElementById('btn-clear');
-
-  const rawStreamEl   = document.getElementById('raw-stream');
-  const rawStatusEl   = document.getElementById('raw-status');
-  const smoothedEl    = document.getElementById('smoothed-sentence');
-  const smoothedStatusEl = document.getElementById('smoothed-status');
-
-  const statInference = document.getElementById('stat-inference');
-  const statFps        = document.getElementById('stat-fps');
-
-  /* ---------------------------- App state ---------------------------- */
-
-  const state = {
-    cameraOn: false,
-    voiceOn: false,
-    mediaStream: null,
-    simulationTimer: null,
-    statsTimer: null,
-  };
-
-  // Vocabulary the "model" simulation draws from. Swap for real inference
-  // output once a hand-detection model is wired into processVideoFrame().
-  const SIMULATED_PHRASES = [
-    'Hello!',
-    'Thank you',
-    'How are you?',
-    'Yes',
-    'No',
-    'Please',
-    'My name is Alex',
-    'Nice to meet you',
-  ];
-
-  /* ============================================================
-     CAMERA CONTROL
-     ============================================================ */
-
-  async function startCamera() {
+// 1. Load the TensorFlow.js Model
+async function loadModel() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
-
-      state.mediaStream = stream;
-      video.srcObject = stream;
-      video.classList.add('is-active');
-      webcamPlaceholder.classList.add('is-hidden');
-      handGuide.classList.add('is-visible');
-      recIndicator.classList.add('is-live');
-
-      state.cameraOn = true;
-      btnCameraLabel.textContent = 'Stop Camera';
-      btnCamera.classList.add('is-active');
-      btnCamera.setAttribute('aria-pressed', 'true');
-
-      rawStatusEl.textContent = 'Listening';
-      smoothedStatusEl.textContent = 'Listening';
-
-      startDetectionSimulation();
-      startStatsJitter();
-    } catch (err) {
-      console.error('Camera access failed:', err);
-      rawStatusEl.textContent = 'Camera error';
-      webcamPlaceholder.querySelector('p').textContent = 'Camera unavailable';
-      webcamPlaceholder.querySelector('span').textContent =
-        'Check browser permissions and try again.';
+        logMessage('Loading TensorFlow.js Keras model...');
+        model = await tf.loadLayersModel(MODEL_PATH);
+        logMessage('Model architecture verified and loaded successfully.');
+    } catch (error) {
+        logMessage(`CRITICAL ERROR loading model: ${error.message}`);
+        statusText.innerText = 'Model failed to load. Check console.';
+        throw error;
     }
-  }
+}
 
-  function stopCamera() {
-    if (state.mediaStream) {
-      state.mediaStream.getTracks().forEach((track) => track.stop());
-      state.mediaStream = null;
+// 2. Anchor Math (Position & Distance Scale Independence normalization)
+function normalizeLandmarks(landmarks) {
+    // MediaPipe provides 21 points with x, y, z coordinates
+    const wrist = landmarks[0];
+    let zeroAnchored = [];
+
+    // Step A: Subtract wrist coordinates from all coordinates (translation invariance)
+    for (let i = 0; i < landmarks.length; i++) {
+        zeroAnchored.push(landmarks[i].x - wrist.x);
+        zeroAnchored.push(landmarks[i].y - wrist.y);
+        zeroAnchored.push(landmarks[i].z - wrist.z);
     }
-    video.srcObject = null;
-    video.classList.remove('is-active');
-    webcamPlaceholder.classList.remove('is-hidden');
-    handGuide.classList.remove('is-visible');
-    recIndicator.classList.remove('is-live');
 
-    state.cameraOn = false;
-    btnCameraLabel.textContent = 'Start Camera';
-    btnCamera.classList.remove('is-active');
-    btnCamera.setAttribute('aria-pressed', 'false');
-
-    rawStatusEl.textContent = 'Idle';
-    smoothedStatusEl.textContent = 'Ready';
-
-    stopDetectionSimulation();
-    stopStatsJitter();
-  }
-
-  btnCamera.addEventListener('click', () => {
-    state.cameraOn ? stopCamera() : startCamera();
-  });
-
-  /* ============================================================
-     VOICE OUTPUT (native, fully offline browser speech synthesis)
-     ============================================================ */
-
-  function speak(text) {
-    if (!state.voiceOn || !('speechSynthesis' in window)) return;
-    // Cancel anything mid-utterance so phrases don't queue up and lag behind.
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    window.speechSynthesis.speak(utterance);
-  }
-
-  btnVoice.addEventListener('click', () => {
-    state.voiceOn = !state.voiceOn;
-    btnVoice.classList.toggle('is-active', state.voiceOn);
-    btnVoice.setAttribute('aria-pressed', String(state.voiceOn));
-    btnVoiceLabel.textContent = `Voice Output: ${state.voiceOn ? 'On' : 'Off'}`;
-
-    if (!state.voiceOn && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+    // Step B: Scale invariance (Normalize scale by maximum distance absolute value)
+    const maxVal = Math.max(...zeroAnchored.map(Math.abs));
+    if (maxVal > 0) {
+        zeroAnchored = zeroAnchored.map(val => val / maxVal);
     }
-  });
 
-  /* ============================================================
-     CLEAR INTERFACE
-     ============================================================ */
+    return zeroAnchored; // Returns a flat array of 63 values
+}
 
-  function clearInterface() {
-    rawStreamEl.innerHTML = '<span class="placeholder-text">Detected signs will stream here…</span>';
-    smoothedEl.innerHTML = '<span class="placeholder-text">Your interpreted sentence will appear here.</span>';
-    smoothedEl.classList.remove('is-fresh');
-    rawStatusEl.textContent = state.cameraOn ? 'Listening' : 'Idle';
-    smoothedStatusEl.textContent = state.cameraOn ? 'Listening' : 'Ready';
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-  }
-
-  btnClear.addEventListener('click', clearInterface);
-
-  /* ============================================================
-     THE DUMMY HOOK — processVideoFrame()
-     ------------------------------------------------------------
-     This is the integration point for a real on-device model.
-     A production pipeline would call this once per captured frame
-     (e.g. from a requestAnimationFrame loop feeding frames into
-     MediaPipe Hands + a gesture classifier running via TF.js/ONNX
-     Runtime Web), with `frameData` being the pixel buffer for that
-     frame. For now it's driven by a 3-second simulation timer that
-     hands it a random phrase instead of real inference output.
-     ============================================================ */
-
-  function processVideoFrame(frameData) {
-    const { rawToken, finalPhrase } = frameData;
-
-    // 1. Raw detection — push the newest token into the raw stream first,
-    //    the way an unsmoothed per-frame classifier would.
-    rawStatusEl.textContent = 'Detecting…';
-    appendRawToken(rawToken);
-
-    // 2. Simulate the short pause a smoothing/language model would take
-    //    to turn noisy raw tokens into a clean finalized phrase.
-    window.setTimeout(() => {
-      setSmoothedSentence(finalPhrase);
-      rawStatusEl.textContent = 'Listening';
-      smoothedStatusEl.textContent = 'Finalized';
-      speak(finalPhrase);
-
-      // Return the status pill to a listening state shortly after.
-      window.setTimeout(() => {
-        if (state.cameraOn) smoothedStatusEl.textContent = 'Listening';
-      }, 1200);
-    }, 550);
-  }
-
-  function appendRawToken(token) {
-    rawStreamEl.innerHTML = '';
-    const span = document.createElement('span');
-    span.textContent = token;
-    rawStreamEl.appendChild(span);
-  }
-
-  function setSmoothedSentence(text) {
-    smoothedEl.innerHTML = '';
-    const span = document.createElement('span');
-    span.textContent = text;
-    smoothedEl.appendChild(span);
-
-    smoothedEl.classList.remove('is-fresh');
-    // Force reflow so the highlight transition can re-trigger on repeats.
-    void smoothedEl.offsetWidth;
-    smoothedEl.classList.add('is-fresh');
-  }
-
-  /* ---------------------------- Simulation driver ---------------------------- */
-
-  function startDetectionSimulation() {
-    stopDetectionSimulation();
-    state.simulationTimer = window.setInterval(() => {
-      const phrase = SIMULATED_PHRASES[Math.floor(Math.random() * SIMULATED_PHRASES.length)];
-      // Mimic a raw token looking rougher than the final smoothed phrase,
-      // e.g. all-caps single-word glosses before language-model cleanup.
-      const rawToken = phrase.replace(/[!?]/g, '').toUpperCase();
-      processVideoFrame({ rawToken, finalPhrase: phrase });
-    }, 3000);
-  }
-
-  function stopDetectionSimulation() {
-    if (state.simulationTimer) {
-      clearInterval(state.simulationTimer);
-      state.simulationTimer = null;
+// 3. 5-Frame Smoothing Window Logic
+function getSmoothedPrediction(newPrediction) {
+    predictionBuffer.push(newPrediction);
+    if (predictionBuffer.length > BUFFER_SIZE) {
+        predictionBuffer.shift();
     }
-  }
 
-  /* ---------------------------- Mock stats dashboard ---------------------------- */
+    // Tally frequency count of classes inside window
+    const frequencyMap = {};
+    let majorityElement = newPrediction;
+    let maxCount = 0;
 
-  function startStatsJitter() {
-    stopStatsJitter();
-    state.statsTimer = window.setInterval(() => {
-      const inference = (28 + Math.random() * 9).toFixed(0);
-      const fps = (28 + Math.random() * 4).toFixed(0);
-      statInference.innerHTML = `${inference}<small>ms</small>`;
-      statFps.innerHTML = `${fps}<small>fps</small>`;
-    }, 1400);
-  }
-
-  function stopStatsJitter() {
-    if (state.statsTimer) {
-      clearInterval(state.statsTimer);
-      state.statsTimer = null;
+    for (const letter of predictionBuffer) {
+        frequencyMap[letter] = (frequencyMap[letter] || 0) + 1;
+        if (frequencyMap[letter] > maxCount) {
+            maxCount = frequencyMap[letter];
+            majorityElement = letter;
+        }
     }
-    statInference.innerHTML = '32<small>ms</small>';
-    statFps.innerHTML = '30<small>fps</small>';
-  }
 
-  /* ---------------------------- Cleanup ---------------------------- */
+    return majorityElement;
+}
 
-  window.addEventListener('beforeunload', () => {
-    if (state.mediaStream) {
-      state.mediaStream.getTracks().forEach((track) => track.stop());
+// 4. Smart Text-to-Speech Engine
+function speakLetter(letter) {
+    if (letter !== lastSpokenLetter && letter !== '-') {
+        lastSpokenLetter = letter;
+        window.speechSynthesis.cancel(); // Stop ongoing stuttering utterances
+        const utterance = new SpeechSynthesisUtterance(letter);
+        utterance.rate = 1.0;
+        window.speechSynthesis.speak(utterance);
     }
-  });
+}
 
-})();
+// 5. Real-Time Processing Loop Core
+async function onResults(results) {
+    // Clear screen UI if no hand structure tracking is present
+    if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+        letterDisplay.innerText = '-';
+        return;
+    }
+
+    // Capture the first tracked hand configuration array
+    const landmarks = results.multiHandLandmarks[0];
+    
+    // Apply position and scale transformation mathematics
+    const inputFeatures = normalizeLandmarks(landmarks);
+
+    // Run execution tensor generation block safely wrapped from leakages
+    tf.tidy(() => {
+        const inputTensor = tf.tensor2d([inputFeatures], [1, 63]);
+        const prediction = model.predict(inputTensor);
+        const probabilities = prediction.dataSync();
+        
+        // Find index with high activation scalar value matching confidence map
+        const maxIndex = probabilities.indexOf(Math.max(...probabilities));
+        const rawLetter = ASL_ALPHABET[maxIndex];
+
+        // Process through smoothing layer matrices
+        const smoothedLetter = getSmoothedPrediction(rawLetter);
+
+        // Update UI View States
+        letterDisplay.innerText = smoothedLetter;
+        
+        // Broadcast speech synthesizers seamlessly
+        speakLetter(smoothedLetter);
+    });
+}
+
+// 6. Main Pipeline Initialization Routine
+async function initializePipeline() {
+    try {
+        await loadModel();
+        
+        statusText.innerText = 'Starting Camera Stream...';
+        logMessage('Initializing MediaPipe Hands framework context...');
+
+        handsPipeline = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        handsPipeline.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.5
+        });
+
+        handsPipeline.onResults(onResults);
+
+        camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await handsPipeline.send({ image: videoElement });
+            },
+            width: 640,
+            height: 480
+        });
+
+        logMessage('Requesting client system webcam access parameters...');
+        await camera.start();
+        
+        logMessage('System pipeline successfully operational.');
+        loadingOverlay.style.display = 'none'; // Clear setup modal overlay away smoothly
+    } catch (error) {
+        logMessage(`Initialization Pipeline Failure: ${error.message}`);
+        statusText.innerText = 'Hardware or Initialization error.';
+    }
+}
+
+// Execute setup execution stack patterns
+window.addEventListener('DOMContentLoaded', initializePipeline);
