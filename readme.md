@@ -1,3 +1,5 @@
+
+
 # 🤟 SignSpeak: Interactive ASL Learning
 
 A privacy-first, browser-based web application for learning the **static American Sign Language (ASL) alphabet** through real-time hand gesture recognition. Using your webcam, Google MediaPipe, and a custom-trained TensorFlow.js neural network, SignSpeak provides instant feedback as you practice finger-spelling—all while keeping every stage of computation entirely on your device.
@@ -5,6 +7,10 @@ A privacy-first, browser-based web application for learning the **static America
 Unlike cloud-based vision systems, **no webcam frames or personal data are ever uploaded to a server**. The complete machine learning pipeline executes locally within your browser.
 
 ---
+
+## Demo Video
+[![SignSpeak Demo](https://img.youtube.com/vi/NPM-2Ks2hGk/maxresdefault.jpg)](https://youtu.be/NPM-2Ks2hGk)
+
 
 ## 🛠️ Tech Stack
 
