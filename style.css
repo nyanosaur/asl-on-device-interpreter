@@ -1,239 +1,645 @@
+/* ==========================================================================
+   SignSpeak ABC — Learn the ASL Alphabet Game
+   Tokens: cream #FFF7E9 · sky #4FB6E8 · sun #FFC33D · coral #FF7A66 · grass #45B478 · ink #362A50
+   Display face: 'Baloo 2' (bubbly, playful) · Body/UI face: 'Quicksand' (rounded, friendly)
+   Signature element: the stacked "flashcard deck" on the right, with a confetti burst on success.
+   ========================================================================== */
+
 :root {
-    --bg-color: #0f172a;
-    --card-bg: #1e293b;
-    --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
-    --accent-blue: #38bdf8;
-    --accent-green: #34d399;
-    --accent-red: #f87171;
-    --border-color: #334155;
+  --cream: #FFF7E9;
+  --cream-deep: #FFEACB;
+  --sky: #4FB6E8;
+  --sky-soft: #E4F5FD;
+  --sun: #FFC33D;
+  --sun-deep: #F5A300;
+  --coral: #FF7A66;
+  --coral-deep: #F0573F;
+  --grass: #45B478;
+  --grass-deep: #2E9459;
+  --grass-soft: #E1F6EB;
+  --ink: #362A50;
+  --ink-soft: #8479A0;
+  --card: #FFFFFF;
+  --line: #F0E2C8;
+  --radius-lg: 30px;
+  --radius-md: 20px;
+  --radius-sm: 14px;
+  --font-display: 'Baloo 2', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Quicksand', 'Segoe UI', system-ui, sans-serif;
+  --shadow-soft: 0 14px 30px rgba(54, 42, 80, 0.10);
+  --shadow-pop: 0 20px 40px rgba(54, 42, 80, 0.16);
 }
 
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: var(--bg-color);
-    color: var(--text-primary);
-    padding: 2rem 1rem;
-    min-height: 100vh;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(circle at 8% 6%, rgba(79, 182, 232, 0.16), transparent 40%),
+    radial-gradient(circle at 96% 12%, rgba(255, 195, 61, 0.20), transparent 38%),
+    radial-gradient(circle at 12% 92%, rgba(255, 122, 102, 0.14), transparent 40%),
+    radial-gradient(circle at 90% 88%, rgba(69, 180, 120, 0.14), transparent 42%);
 }
 
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
+:focus-visible {
+  outline: 3px solid var(--sky);
+  outline-offset: 3px;
+  border-radius: 6px;
 }
 
-h1 {
-    font-size: 2.25rem;
-    font-weight: 700;
-    margin-bottom: 2rem;
-    text-align: center;
-    background: linear-gradient(to right, #38bdf8, #818cf8);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+button { font-family: inherit; }
+
+/* ============================= App shell ============================= */
+
+.app {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 28px 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-height: 100vh;
 }
 
-.main-content {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
+/* ============================= Header ============================= */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
-@media (min-width: 900px) {
-    .main-content {
-        grid-template-columns: 2fr 1fr;
-    }
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
-/* Video Frame System */
-.video-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+.brand-mark {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: linear-gradient(155deg, var(--sun) 0%, var(--coral) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 28px;
+  box-shadow: var(--shadow-soft);
+  transform: rotate(-4deg);
 }
 
-.video-wrapper {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 4 / 3;
-    background-color: #020617;
-    border-radius: 1rem;
-    overflow: hidden;
-    border: 1px solid var(--border-color);
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+.brand-text h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
 }
 
-#webcam, #output {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
+.brand-text p {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: var(--ink-soft);
+  font-weight: 600;
 }
 
-#output {
-    z-index: 5;
-    transform: scaleX(-1); /* Mirror output canvas */
+.camera-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 2px solid var(--line);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: var(--shadow-soft);
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--sun-deep);
+  box-shadow: 0 0 0 0 rgba(245, 163, 0, 0.55);
+  animation: status-pulse 1.6s ease-out infinite;
+}
+
+.camera-status-pill.is-live .status-dot {
+  background: var(--grass);
+  box-shadow: 0 0 0 0 rgba(69, 180, 120, 0.55);
+}
+
+.camera-status-pill.is-error .status-dot {
+  background: var(--coral-deep);
+  animation: none;
+}
+
+@keyframes status-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(245, 163, 0, 0.55); }
+  70%  { box-shadow: 0 0 0 9px rgba(245, 163, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 163, 0, 0); }
+}
+
+/* ============================= Letter progress trail ============================= */
+
+.progress-trail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 14px 18px;
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+}
+
+.progress-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: var(--cream-deep);
+  border: 2px solid transparent;
+  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.progress-dot.is-current {
+  border-color: var(--sky);
+  color: var(--sky);
+  background: var(--sky-soft);
+  transform: scale(1.12);
+}
+
+.progress-dot.is-learned {
+  background: var(--grass);
+  color: #fff;
+}
+
+/* ============================= Main grid ============================= */
+
+.main-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 24px;
+  align-items: stretch;
+}
+
+.panel-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 0 4px;
+}
+
+/* ============================= Webcam column ============================= */
+
+.webcam-column {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.webcam-frame {
+  position: relative;
+  flex: 1;
+  min-height: 420px;
+  background: var(--ink);
+  border: 6px solid var(--card);
+  outline: 4px solid var(--sky);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-pop);
 }
 
 #webcam {
-    transform: scaleX(-1); /* Mirror video feed */
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* CRUCIAL: mirror the feed so signers see themselves naturally */
+  transform: scaleX(-1);
+  display: none;
 }
 
-/* Loading HUD Overlay */
-.overlay {
-    position: absolute;
-    inset: 0;
-    background-color: rgba(15, 23, 42, 0.85);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    z-index: 10;
-    transition: opacity 0.4s ease;
+#webcam.is-active {
+  display: block;
 }
 
-.spinner {
-    width: 3rem;
-    height: 3rem;
-    border: 4px solid var(--border-color);
-    border-top-color: var(--accent-blue);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
+.webcam-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  text-align: center;
+  padding: 24px;
 }
 
-@keyframes spin {
-    to { transform: rotate(360deg); }
+.placeholder-icon {
+  font-size: 44px;
+  animation: gentle-bob 2.2s ease-in-out infinite;
 }
 
-#loading-text {
-    color: var(--text-secondary);
-    font-size: 0.95rem;
+.webcam-placeholder p {
+  margin: 10px 0 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
 }
 
-/* Control Elements */
+.webcam-placeholder span {
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 600;
+}
+
+.webcam-placeholder.is-hidden {
+  display: none;
+}
+
+@keyframes gentle-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* Hand placement guide */
+
+.hand-guide {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 48%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border: 3px dashed rgba(255, 195, 61, 0.85);
+  border-radius: var(--radius-md);
+  display: none;
+  pointer-events: none;
+}
+
+.hand-guide.is-visible {
+  display: block;
+}
+
+.corner {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-color: var(--sun);
+  border-style: solid;
+  border-width: 0;
+}
+
+.corner-tl { top: -3px; left: -3px; border-top-width: 4px; border-left-width: 4px; border-radius: 8px 0 0 0; }
+.corner-tr { top: -3px; right: -3px; border-top-width: 4px; border-right-width: 4px; border-radius: 0 8px 0 0; }
+.corner-bl { bottom: -3px; left: -3px; border-bottom-width: 4px; border-left-width: 4px; border-radius: 0 0 0 8px; }
+.corner-br { bottom: -3px; right: -3px; border-bottom-width: 4px; border-right-width: 4px; border-radius: 0 0 8px 0; }
+
+.guide-caption {
+  position: absolute;
+  bottom: -34px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--sun);
+  padding: 4px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ============================= Controls ============================= */
+
 .controls {
-    display: flex;
-    justify-content: center;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    background-color: var(--accent-blue);
-    color: #0f172a;
-    border: none;
-    padding: 0.75rem 1.5rem;
-    font-size: 1rem;
-    font-weight: 600;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 18px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  flex: 1;
+  justify-content: center;
+  min-width: 150px;
+  box-shadow: var(--shadow-soft);
 }
 
-.btn:hover:not(.disabled) {
-    opacity: 0.9;
-    transform: translateY(-1px);
+.btn:hover {
+  transform: translateY(-2px);
 }
 
-.btn.disabled {
-    background-color: var(--border-color);
-    color: var(--text-secondary);
-    cursor: not-allowed;
+.btn:active {
+  transform: translateY(0);
 }
 
-/* Cards & Layout Architecture */
-.side-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
+.btn-secondary.is-active {
+  color: var(--sky);
+  border-color: var(--sky);
+  background: var(--sky-soft);
 }
 
-.card {
-    background-color: var(--card-bg);
-    border-radius: 1rem;
-    padding: 1.5rem;
-    border: 1px solid var(--border-color);
+.btn-ghost {
+  background: var(--coral);
+  color: #fff;
+  border-color: var(--coral);
 }
 
-.card h2 {
-    font-size: 0.875rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-secondary);
-    margin-bottom: 1rem;
+.btn-ghost:hover {
+  background: var(--coral-deep);
+  border-color: var(--coral-deep);
 }
 
-/* Letter Output Box */
-#prediction-output {
-    font-size: 6rem;
-    font-weight: 800;
-    text-align: center;
-    color: var(--accent-green);
-    margin: 1rem 0;
-    line-height: 1;
+/* ============================= Output column / Flashcard ============================= */
+
+.output-column {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.confidence-container {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
+.flashcard-box {
+  position: relative;
+  flex: 1;
+  min-height: 420px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.confidence-label {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
+/* Signature element: a peeking stack of cards behind the active flashcard */
+.flashcard-stack-behind,
+.flashcard-stack-behind-2 {
+  position: absolute;
+  inset: 0;
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  border: 3px solid var(--line);
 }
 
-.progress-bar {
+.flashcard-stack-behind {
+  transform: rotate(4deg);
+  background: var(--sky-soft);
+}
+
+.flashcard-stack-behind-2 {
+  transform: rotate(-3deg);
+  background: var(--sun);
+  opacity: 0.55;
+}
+
+.flashcard-front {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--card);
+  border: 4px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 30px 24px;
+  text-align: center;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+  overflow: hidden;
+}
+
+.flashcard-front::before {
+  content: '';
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 54px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--cream-deep);
+  border: 2px solid var(--line);
+}
+
+.flashcard-eyebrow {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--sky);
+  background: var(--sky-soft);
+  padding: 6px 16px;
+  border-radius: 999px;
+  margin-top: 10px;
+}
+
+.flashcard-image-wrap {
+  position: relative;
+  width: 170px;
+  height: 170px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#flashcard-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 12px rgba(54, 42, 80, 0.15));
+}
+
+#flashcard-image.is-hidden {
+  display: none;
+}
+
+.flashcard-letter-fallback {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-display);
+  font-size: 96px;
+  font-weight: 700;
+  color: var(--sky);
+  background: var(--sky-soft);
+  border-radius: var(--radius-md);
+}
+
+.flashcard-letter-fallback.is-visible {
+  display: flex;
+}
+
+.flashcard-target-letter {
+  font-family: var(--font-display);
+  font-size: 64px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.flashcard-hint {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.celebration-banner {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--grass-deep);
+  border-radius: calc(var(--radius-lg) - 4px);
+}
+
+.celebration-emoji {
+  font-size: 54px;
+  animation: cheer-bounce 0.6s ease-in-out infinite;
+}
+
+@keyframes cheer-bounce {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-14px) rotate(4deg); }
+}
+
+.flashcard-front.is-celebrating {
+  border-color: var(--grass);
+  box-shadow: 0 20px 44px rgba(69, 180, 120, 0.30);
+  transform: scale(1.02);
+}
+
+.flashcard-front.is-celebrating .celebration-banner {
+  display: flex;
+}
+
+/* Confetti burst */
+
+.confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -12px;
+  width: 9px;
+  height: 14px;
+  opacity: 0;
+  border-radius: 2px;
+}
+
+.flashcard-front.is-celebrating .confetti-piece {
+  animation: confetti-fall 1.1s ease-in forwards;
+}
+
+@keyframes confetti-fall {
+  0%   { opacity: 1; transform: translateY(0) rotate(0deg); }
+  100% { opacity: 0; transform: translateY(340px) rotate(340deg); }
+}
+
+/* ============================= Footer ============================= */
+
+.app-footer {
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 4px 0 8px;
+}
+
+/* ============================= Responsive ============================= */
+
+@media (max-width: 980px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+  .webcam-frame, .flashcard-box {
+    min-height: 340px;
+  }
+  .app {
+    padding: 20px 18px 16px;
+  }
+  .camera-status-pill {
     width: 100%;
-    height: 0.5rem;
-    background-color: var(--border-color);
-    border-radius: 9999px;
-    overflow: hidden;
+    justify-content: center;
+  }
 }
 
-#confidence-bar {
-    height: 100%;
-    background-color: var(--accent-green);
-    transition: width 0.15s linear;
-}
-
-#confidence-text {
-    font-size: 0.85rem;
-    text-align: right;
-    font-weight: 600;
-}
-
-/* Health Metrics Interface */
-.status-list {
-    list-style: none;
-    display: flex;
+@media (max-width: 560px) {
+  .controls {
     flex-direction: column;
-    gap: 0.75rem;
+  }
+  .btn {
+    width: 100%;
+  }
+  .brand-text h1 {
+    font-size: 22px;
+  }
+  .flashcard-target-letter {
+    font-size: 48px;
+  }
 }
 
-.status-list li {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    font-size: 0.95rem;
-}
+/* ============================= Reduced motion ============================= */
 
-.indicator {
-    width: 0.625rem;
-    height: 0.625rem;
-    border-radius: 50%;
+@media (prefers-reduced-motion: reduce) {
+  .status-dot,
+  .placeholder-icon,
+  .celebration-emoji,
+  .btn,
+  .confetti-piece {
+    animation: none !important;
+    transition: none !important;
+  }
 }
-
-.indicator.red { background-color: var(--accent-red); }
-.indicator.green { background-color: var(--accent-green); }
-.indicator.gray { background-color: var(--text-secondary); }
