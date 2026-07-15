@@ -4,7 +4,7 @@ This document outlines the structural framework, mathematical modeling data path
 
 ---
 
-## 🏗️ Architectural Overview
+## 🏗️ Architectural Overview 1
 
 The application follows an **Edge-Compute Stream Design Pattern**. Rather than capturing raw matrix frames and transferring massive tracking properties to remote processing servers, execution handles sequential steps micro-second by micro-second directly within the browser lifecycle loop.
 
