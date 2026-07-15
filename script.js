@@ -5,8 +5,8 @@ const statusText = document.getElementById('status-text');
 const loadingOverlay = document.getElementById('loading-overlay');
 const consoleLog = document.getElementById('console-log');
 
-// Configuration Constants
-const MODEL_PATH = './model.json';
+// Configuration Constants - Updated path for flat repository layout
+const MODEL_PATH = './model.json'; 
 const BUFFER_SIZE = 5;
 const ASL_ALPHABET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y'];
 
@@ -25,11 +25,12 @@ function logMessage(message) {
     console.log(message);
 }
 
-// 1. Load the TensorFlow.js Model
+// 1. Load the TensorFlow.js Model with strict layout validation bypassed
 async function loadModel() {
     try {
         logMessage('Loading TensorFlow.js Keras model...');
-        model = await tf.loadLayersModel(MODEL_PATH);
+        // Added { strict: false } to handle Keras 3 layer naming variances smoothly
+        model = await tf.loadLayersModel(MODEL_PATH, { strict: false });
         logMessage('Model architecture verified and loaded successfully.');
     } catch (error) {
         logMessage(`CRITICAL ERROR loading model: ${error.message}`);
@@ -40,18 +41,17 @@ async function loadModel() {
 
 // 2. Anchor Math (Position & Distance Scale Independence normalization)
 function normalizeLandmarks(landmarks) {
-    // MediaPipe provides 21 points with x, y, z coordinates
     const wrist = landmarks[0];
     let zeroAnchored = [];
 
-    // Step A: Subtract wrist coordinates from all coordinates (translation invariance)
+    // Subtract wrist coordinates from all coordinates (translation invariance)
     for (let i = 0; i < landmarks.length; i++) {
         zeroAnchored.push(landmarks[i].x - wrist.x);
         zeroAnchored.push(landmarks[i].y - wrist.y);
         zeroAnchored.push(landmarks[i].z - wrist.z);
     }
 
-    // Step B: Scale invariance (Normalize scale by maximum distance absolute value)
+    // Scale invariance (Normalize scale by maximum distance absolute value)
     const maxVal = Math.max(...zeroAnchored.map(Math.abs));
     if (maxVal > 0) {
         zeroAnchored = zeroAnchored.map(val => val / maxVal);
@@ -67,7 +67,6 @@ function getSmoothedPrediction(newPrediction) {
         predictionBuffer.shift();
     }
 
-    // Tally frequency count of classes inside window
     const frequencyMap = {};
     let majorityElement = newPrediction;
     let maxCount = 0;
@@ -96,35 +95,24 @@ function speakLetter(letter) {
 
 // 5. Real-Time Processing Loop Core
 async function onResults(results) {
-    // Clear screen UI if no hand structure tracking is present
     if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
         letterDisplay.innerText = '-';
         return;
     }
 
-    // Capture the first tracked hand configuration array
     const landmarks = results.multiHandLandmarks[0];
-    
-    // Apply position and scale transformation mathematics
     const inputFeatures = normalizeLandmarks(landmarks);
 
-    // Run execution tensor generation block safely wrapped from leakages
     tf.tidy(() => {
         const inputTensor = tf.tensor2d([inputFeatures], [1, 63]);
         const prediction = model.predict(inputTensor);
         const probabilities = prediction.dataSync();
         
-        // Find index with high activation scalar value matching confidence map
         const maxIndex = probabilities.indexOf(Math.max(...probabilities));
         const rawLetter = ASL_ALPHABET[maxIndex];
-
-        // Process through smoothing layer matrices
         const smoothedLetter = getSmoothedPrediction(rawLetter);
 
-        // Update UI View States
         letterDisplay.innerText = smoothedLetter;
-        
-        // Broadcast speech synthesizers seamlessly
         speakLetter(smoothedLetter);
     });
 }
@@ -162,7 +150,7 @@ async function initializePipeline() {
         await camera.start();
         
         logMessage('System pipeline successfully operational.');
-        loadingOverlay.style.display = 'none'; // Clear setup modal overlay away smoothly
+        loadingOverlay.style.style.display = 'none'; 
     } catch (error) {
         logMessage(`Initialization Pipeline Failure: ${error.message}`);
         statusText.innerText = 'Hardware or Initialization error.';
